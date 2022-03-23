@@ -1,0 +1,79 @@
+<launch>
+
+  <arg name="simulation" default="$(eval env('RUN_TYPE') == 'simulation')" />
+
+  <arg name="uav_name" default="$(optenv UAV_NAME uav)"/>
+  <arg name="respawn" default="false" />
+
+  <arg name="rosbag_remap" default="false" />
+  <arg unless="$(arg rosbag_remap)" name="suf" value=""/>
+  <arg     if="$(arg rosbag_remap)" name="suf" value="_"/>
+
+  <arg name="debug" default="false" />
+  <arg unless="$(arg debug)" name="launch_prefix" value=""/>
+  <arg     if="$(arg debug)" name="launch_prefix" value="debug_roslaunch"/>
+
+  <arg name="profile" default="false" />
+  <arg unless="$(arg profile)" name="launch_prefix_profile" value=""/>
+  <arg     if="$(arg profile)" name="launch_prefix_profile" value="valgrind --tool=callgrind --callgrind-out-file='callgrind.out.%p'"/>
+
+  <!-- simulation-dependent arguments -->
+  <arg unless="$(arg simulation)" name="apriori_map_config_filename" value="$(find uav_detect)/config/apriori_map.yaml" />
+  <arg     if="$(arg simulation)" name="apriori_map_config_filename" value="$(find uav_detect)/config/apriori_map_sim.yaml" />
+
+  <arg unless="$(arg simulation)" name="mask_filename1" value="$(find uav_detect)/masks/eaglemk2_os0_mask.bmp" />
+  <arg     if="$(arg simulation)" name="mask_filename1" value="$(find uav_detect)/masks/mask.png" />
+
+  <arg name="ignore_mask" default="$(optenv IGNORE_MASK false)" />
+  <arg unless="$(arg ignore_mask)" name="mask_filename" value="$(arg mask_filename1)"/>
+  <arg     if="$(arg ignore_mask)" name="mask_filename" value=""/>
+
+  <!-- nodelet-related arguments -->
+  <arg name="standalone" default="true" />
+  <arg name="manager" default="detection_nodelet_manager" />
+  <arg name="det_nodelet" value="uav_detect/PCLDetector" />
+  <arg unless="$(arg standalone)" name="nodelet_load" value="load $(arg det_nodelet) $(arg manager)"/>
+  <arg     if="$(arg standalone)" name="nodelet_load" value="standalone $(arg det_nodelet)"/>
+
+  <group ns="$(arg uav_name)">
+
+    <node pkg="nodelet" type="nodelet" name="uav_detection" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
+      
+      <param name="sensor/simulation" value="$(arg simulation)" />
+
+      <param name="uav_name" value="$(arg uav_name)" />
+      <param name="world_frame_id" value="$(arg uav_name)/rtk_origin" />
+      <param name="raycast/mask_filename" value="$(arg mask_filename)" />
+      <!-- <param name="static_cloud_filename" value="$(find uav_detect)/data/usmocku.pts" /> -->
+      <!-- <param name="static_cloud_filename" value="$(find uav_detect)/data/cisarsky_ostrov.xyz" /> -->
+      <param name="static_cloud_filename" value="" />
+      <rosparam file="$(arg apriori_map_config_filename)" />
+      <rosparam file="$(find uav_detect)/config/detection_params.yaml" />
+      <rosparam file="$(find uav_detect)/config/visualization.yaml" />
+    
+      <!-- Subscribers -->
+      <remap from="~pointcloud" to="os_cloud_nodelet/points" />
+      <remap from="~height_rangefinder" to="garmin/range" />
+
+      <!-- Publishers -->
+      <remap from="~filtered_input_pc" to="~filtered_input_pc$(arg suf)" />
+      <remap from="~map3d" to="~map3d$(arg suf)" />
+      <remap from="~map3d_bounds" to="~map3d_bounds$(arg suf)" />
+      <remap from="~operation_area" to="~operation_area$(arg suf)" />
+      <remap from="~passthrough_position" to="~passthrough_position$(arg suf)" />
+      <remap from="~passthrough_neighborhood" to="~passthrough_neighborhood$(arg suf)" />
+      <remap from="~detections_pc" to="~detections_pc$(arg suf)" />
+      <remap from="~detection" to="~detection$(arg suf)" />
+      <remap from="~detection_classified" to="~detection_classified$(arg suf)" />
+      <remap from="~detection_neighborhood" to="~detection_neighborhood$(arg suf)" />
+      <remap from="~lidar_fov" to="~lidar_fov$(arg suf)" />
+
+      <!-- Services -->
+      <remap from="~reset" to="~reset" />
+      <remap from="~os_config" to="os_nodelet/os_config" />
+
+    </node>
+  
+  </group>
+
+</launch>
