@@ -1,18 +1,5 @@
-<library path="lib/libPCLDetector">
-  <class name="uav_detect/PCLDetector" type="uav_detect::PCLDetector" base_class_type="nodelet::Nodelet">
-    <description>Nodelet for detecting a flying object in a pointcloud</description>
+<library path="lib/libSwarmControl">
+  <class name="difec_ron/SwarmControl" type="difec_ron::SwarmControl" base_class_type="nodelet::Nodelet">
+    <description>Nodelet for controlling a swarm using the DiFEC-RON control rule.</description>
   </class>
 </library>
-
-<library path="lib/libPCLSelfLocalizator">
-  <class name="uav_detect/PCLSelfLocalizator" type="uav_detect::PCLSelfLocalizator" base_class_type="nodelet::Nodelet">
-    <description>Nodelet for self-localization in apriori known pointcloud map using a LiDAR sensor</description>
-  </class>
-</library>
-
-<library path="lib/libMaskCreator">
-  <class name="uav_detect/MaskCreator" type="uav_detect::MaskCreator" base_class_type="nodelet::Nodelet">
-    <description>Nodelet for automatic creation of masks from pointcloud messages</description>
-  </class>
-</library>
-
