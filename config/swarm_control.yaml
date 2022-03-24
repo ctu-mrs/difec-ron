@@ -1,6 +1,7 @@
 transform_lookup_timeout: 0.3 # seconds
 throttle_period: 1.0 # seconds
 
+admissible_overshoot_probability: 0.7
 formation:
   uav1:
     uvdar_id: 0

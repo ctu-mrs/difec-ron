@@ -30,6 +30,7 @@ namespace difec_ron
     
     struct det_t
     {
+      uint64_t id;
       vec3_t p; // relative position measurement
       mat3_t C; // position uncertainty covariance matrix
       double psi; // relative heading measurement
@@ -47,6 +48,12 @@ namespace difec_ron
       uint64_t id; // ID of this agent
       std::string uav_name;
       pose_t desired_relative_pose; // the desired pose in the formation relative to the current agent
+    };
+
+    struct agent_meas_t
+    {
+      agent_t formation;
+      det_t detected;
     };
     
     //}
@@ -68,6 +75,7 @@ namespace difec_ron
       pl.loadParam("world_frame_id", m_world_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
+      pl.loadParam("admissible_overshoot_probability", m_admissible_overshoot_prob);
 
       // load the formation
       const auto formation_opt = load_formation(pl);
@@ -130,27 +138,22 @@ namespace difec_ron
       const mat3_t tf_rot = tf.rotation();
       const double tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
 
-      // first, find out which neighbors we see and save them sorted
-      std::vector<std::optional<mrs_msgs::PoseWithCovarianceIdentified>> neighbor_dets(m_formation.size(), std::nullopt);
+      // fill the vector of detected agents and their corresponding desired poses in the formation
+      std::vector<agent_meas_t> agent_meass;
       for (const auto& pose : msg->poses)
       {
-        const int id = pose.id;
-        if ((size_t)id >= m_formation.size())
+        // first, find the corresponding agent in the formation
+        std::optional<agent_t> formation_agent_opt;
+        for (const auto& agent : m_formation)
+          if (agent.id == pose.id)
+            formation_agent_opt = agent;
+
+        // ignore unexpected IDs
+        if (!formation_agent_opt.has_value())
         {
-          ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Received detection of unknown neighbor with ID" << id << ". Max. expected ID is " << m_formation.size()-1);
+          ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Received detection of neighbor with unexpected ID" << pose.id << ". Ignoring.");
           continue;
         }
-        neighbor_dets.at(id) = pose;
-      }
-
-      // convert the message to measurements in a usable format
-      std::vector<det_t> measurements;
-      std::vector<pose_t> desired_poses;
-      for (const auto& pose_opt : neighbor_dets)
-      {
-        if (!pose_opt.has_value())
-          continue;
-        const auto& pose = pose_opt.value();
 
         // position in the original frame of the message
         const vec3_t pos_orig = mrs_lib::geometry::toEigen(pose.pose.position);
@@ -173,16 +176,53 @@ namespace difec_ron
         // TODO: check that yaw really corresponds to heading here and that it doesn't have to be transformed
         const double sig = cov_orig(6, 6);
 
-        // add the detection to the list
-        const det_t det{std::move(p), std::move(C), psi, sig};
-        measurements.emplace_back(std::move(det));
-
-        // add the corresponding desired pose to the list
-        for (const auto& agent : m_formation)
-          if (agent.id == pose.id)
-            desired_poses.push_back(agent.desired_relative_pose);
+        // add the measurement to the list
+        const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
+        agent_meass.emplace_back(std::move(det), formation_agent_opt.value());
       }
 
+      const auto l = m_admissible_overshoot_prob;
+      const double eps = 1e-6;
+
+      for (const auto& meas : agent_meass)
+      {
+        // shorthand for the measured relative pose
+        const auto& m = meas.detected;
+        // shorthand for the desired relative pose
+        const auto& d = meas.formation.desired_relative_pose;
+        // heading difference between measured and desired position
+        const double dpsi = m.psi - d.psi;
+        // rotation matrix corresponding to the heading difference
+        const mat3_t R_dpsi( anax_t(dpsi, vec3_t::UnitZ()) );
+        // position difference between measured and desired position
+        const vec3_t p_md = m.p - d.p;
+
+        // | --------------------- calculate p_c1 --------------------- |
+        // TODO: proper inverse calculation and checking
+        const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
+        const vec3_t p_c1 = sig_p*(m.p - d.p).normalized()*std::erfc(l) + m.p;
+
+        // | --------------------- calculate p_c2 --------------------- |
+        const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        // construct the matrices V, L and then C_t
+        const vec3_t v_d1 = vec3_t(-p_dR.z(), p_dR.y(), 0).normalized();
+        const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
+        const vec3_t v_d3(0, 0, 1);
+        mat3_t V;
+        V.col(0) = v_d1;
+        V.col(1) = v_d2;
+        V.col(2) = v_d3;
+        const mat3_t L = vec3_t(m.sig, eps, eps).asDiagonal();
+        // TODO: shouldn't this be V*L*V.transpose()?
+        // TODO: proper inverse calculation and checking
+        const mat3_t Ct = V*L*V.inverse();
+        const mat3_t Cc = m.C + Ct;
+        const vec3_t p_mdR = m.p - p_dR;
+        // TODO: proper inverse calculation and checking
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * Cc.inverse() * p_mdR) * erfc(l) + m.p;
+
+        // | --------------------- calculate p_c3 --------------------- |
+      }
 
 /*       vec3_t u_a = vec3_t::Zero(); */
 /*       for (int it = 0; it < n_m; it++) */
@@ -340,6 +380,7 @@ namespace difec_ron
     double m_throttle_period;
 
     std::vector<agent_t> m_formation;
+    double m_admissible_overshoot_prob;
 
     //}
 
