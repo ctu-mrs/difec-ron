@@ -27,6 +27,10 @@ namespace difec_ron
   {
 
     /* some common type definitions //{ */
+
+    /* using vec3_t = mrs_lib::geometry::vec3_t; */
+    /* using mat3_t = mrs_lib::geometry::mat3_t; */
+    /* using mat6_t = Eigen::Matrix<double, 6, 6>; */
     
     struct det_t
     {
@@ -178,12 +182,16 @@ namespace difec_ron
 
         // add the measurement to the list
         const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
-        agent_meass.emplace_back(std::move(det), formation_agent_opt.value());
+        agent_meass.push_back({formation_agent_opt.value(), std::move(det)});
       }
 
       const auto l = m_admissible_overshoot_prob;
       const double eps = 1e-6;
 
+      vec3_t u_accum_1 = vec3_t::Zero();
+      vec3_t u_accum_2 = vec3_t::Zero();
+      vec3_t omega_accum_1 = vec3_t::Zero();
+      vec3_t omega_accum_2 = vec3_t::Zero();
       for (const auto& meas : agent_meass)
       {
         // shorthand for the measured relative pose
@@ -201,6 +209,7 @@ namespace difec_ron
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
         const vec3_t p_c1 = sig_p*(m.p - d.p).normalized()*std::erfc(l) + m.p;
+        const double pci_c = m.sig * mrs_lib::signum(dpsi) * std::erfc(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -215,14 +224,34 @@ namespace difec_ron
         const mat3_t L = vec3_t(m.sig, eps, eps).asDiagonal();
         // TODO: shouldn't this be V*L*V.transpose()?
         // TODO: proper inverse calculation and checking
-        const mat3_t Ct = V*L*V.inverse();
-        const mat3_t Cc = m.C + Ct;
+        const mat3_t C_t = V*L*V.inverse();
+        const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * Cc.inverse() * p_mdR) * erfc(l) + m.p;
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erfc(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
+        const double beta = -std::atan2(m.p.y(), m.p.x());
+        const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
+        const mat3_t C_r = R_beta*m.C*R_beta.transpose();
+        const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
+        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * std::erfc(l);
+        const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
+        const vec3_t p_c3 = R_tot*m.p;
+
+        // TODO: find out what S means
+        const mat3_t S = mat3_t::Identity();
+        u_accum_1 += clamp(p_c1 - d.p, d.p, m.p);
+        u_accum_2 += clamp(p_c3 - p_dR, p_dR, m.p);
+        // TODO: fix this, currently the vector sizes do not match
+        const vec3_t tmp1 = d.p.transpose()*S.transpose()*p_c3;
+        const vec3_t tmp2 = d.p.transpose()*S.transpose()*m.p;
+        omega_accum_1 += clamp(tmp1, vec3_t::Zero(), tmp2);
+        omega_accum_2 += std::clamp(psi_c - d.psi, d.psi, m.psi);
       }
+
+      const vec3_t u = k_e*(u_accum_1 + u_accum_2);
+      const vec3_t omega = k_e*(omega_accum_1 + 2*omega_accum_2);
 
 /*       vec3_t u_a = vec3_t::Zero(); */
 /*       for (int it = 0; it < n_m; it++) */
@@ -243,6 +272,17 @@ namespace difec_ron
 /*       } */
 
 /*       const vec3_t u = k_e*(u_a + u_b); */
+    }
+
+    vec3_t clamp(const vec3_t& what, const vec3_t& min, const vec3_t& max)
+    {
+      // TODO: make more robust!
+      const double what_len = what.norm();
+      if (what_len > max.norm())
+        return max;
+      else if (what_len < min.norm())
+        return min;
+      return what;
     }
 
     std::string to_string(XmlRpc::XmlRpcValue::Type type)
