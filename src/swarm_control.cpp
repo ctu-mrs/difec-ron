@@ -105,6 +105,10 @@ namespace difec_ron
       shopts.no_message_timeout = ros::Duration(5.0);
       // Initialize subscribers
       mrs_lib::construct_object(m_sh_detections, shopts, "detections_in");
+
+      //Initialize publishers
+      m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
+      m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       //}
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
@@ -186,12 +190,13 @@ namespace difec_ron
       }
 
       const auto l = m_admissible_overshoot_prob;
+      const double k_e = 0.5;
       const double eps = 1e-6;
 
       vec3_t u_accum_1 = vec3_t::Zero();
       vec3_t u_accum_2 = vec3_t::Zero();
-      vec3_t omega_accum_1 = vec3_t::Zero();
-      vec3_t omega_accum_2 = vec3_t::Zero();
+      double omega_accum_1 = 0.0;
+      double omega_accum_2 = 0.0;
       for (const auto& meas : agent_meass)
       {
         // shorthand for the measured relative pose
@@ -209,7 +214,7 @@ namespace difec_ron
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
         const vec3_t p_c1 = sig_p*(m.p - d.p).normalized()*std::erfc(l) + m.p;
-        const double pci_c = m.sig * mrs_lib::signum(dpsi) * std::erfc(l) + m.psi;
+        const double psi_c = m.sig * mrs_lib::signum(dpsi) * std::erfc(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -239,50 +244,79 @@ namespace difec_ron
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
-        // TODO: find out what S means
-        const mat3_t S = mat3_t::Identity();
+        const mat3_t S = skew_symmetric(vec3_t::UnitZ());
         u_accum_1 += clamp(p_c1 - d.p, d.p, m.p);
-        u_accum_2 += clamp(p_c3 - p_dR, p_dR, m.p);
+        u_accum_2 += clamp(p_c2 - p_dR, p_dR, m.p);
         // TODO: fix this, currently the vector sizes do not match
-        const vec3_t tmp1 = d.p.transpose()*S.transpose()*p_c3;
-        const vec3_t tmp2 = d.p.transpose()*S.transpose()*m.p;
-        omega_accum_1 += clamp(tmp1, vec3_t::Zero(), tmp2);
-        omega_accum_2 += std::clamp(psi_c - d.psi, d.psi, m.psi);
+        const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
+        const double tmp2 = d.p.transpose()*S.transpose()*m.p;
+        omega_accum_1 += std::clamp(tmp1, 0.0, tmp2);
+        omega_accum_2 += std::clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
       }
 
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
-      const vec3_t omega = k_e*(omega_accum_1 + 2*omega_accum_2);
+      const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
 
-/*       vec3_t u_a = vec3_t::Zero(); */
-/*       for (int it = 0; it < n_m; it++) */
-/*       { */
-/*         const vec3_t& p_c1 = dets_c1.at(it); */
-/*         const vec3_t& p_d = dets_d.at(it); */
-/*         const vec3_t& p_m = dets_m.at(it); */
-/*         u_a += clamp(p_c1 - p_d, p_d, p_m); */
-/*       } */
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ".");
 
-/*       vec3_t u_b = vec3_t::Zero(); */
-/*       for (int it = 0; it < n_m; it++) */
-/*       { */
-/*         const vec3_t& p_c2 = dets_c2.at(it); */
-/*         const vec3_t& p_dR = dets_dR.at(it); */
-/*         const vec3_t& p_m = dets_m.at(it); */
-/*         u_b += clamp(p_c2 - p_dR, p_dR, p_m); */
-/*       } */
+      m_pub_vis_u.publish(vector_vis(u, now));
+      m_pub_vis_omega.publish(heading_vis(omega, now));
+    }
 
-/*       const vec3_t u = k_e*(u_a + u_b); */
+    visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time)
+    {
+      visualization_msgs::Marker mkr;
+      mkr.header.frame_id = m_uav_frame_id;
+      mkr.header.stamp = time;
+      mkr.type = visualization_msgs::Marker::ARROW;
+      mkr.pose.orientation.w = 1.0;
+      mkr.scale.x = 0.05; // shaft diameter
+      mkr.scale.y = 0.15; // head diameter
+      geometry_msgs::Point pnt;
+      mkr.points.push_back(pnt);
+      pnt.x = vec.x();
+      pnt.y = vec.y();
+      pnt.z = vec.z();
+      mkr.points.push_back(pnt);
+      return mkr;
+    }
+
+    visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time)
+    {
+      visualization_msgs::Marker mkr;
+      mkr.header.frame_id = m_uav_frame_id;
+      mkr.header.stamp = time;
+      mkr.type = visualization_msgs::Marker::ARROW;
+      mkr.pose.orientation.w = 1.0;
+      mkr.scale.x = 0.05; // shaft diameter
+      mkr.scale.y = 0.15; // head diameter
+      geometry_msgs::Point pnt;
+      mkr.points.push_back(pnt);
+      pnt.z = hdg;
+      mkr.points.push_back(pnt);
+      return mkr;
+    }
+
+    mat3_t skew_symmetric(const vec3_t& from)
+    {
+      mat3_t ss;
+      ss << 0, -from.z(), from.y(),
+            from.z(), 0, -from.x(),
+            -from.y(), from.x(), 0;
+      return ss;
     }
 
     vec3_t clamp(const vec3_t& what, const vec3_t& min, const vec3_t& max)
     {
-      // TODO: make more robust!
-      const double what_len = what.norm();
-      if (what_len > max.norm())
+      const vec3_t dir = max - min;
+      const double len = dir.norm();
+      const double proj = what.dot(dir)/len;
+      if (proj < 0)
+        return vec3_t::Zero();
+      else if (proj > len)
         return max;
-      else if (what_len < min.norm())
-        return min;
-      return what;
+      else
+        return what;
     }
 
     std::string to_string(XmlRpc::XmlRpcValue::Type type)
@@ -404,6 +438,8 @@ namespace difec_ron
     /* ROS related variables (subscribers, timers etc.) //{ */
     mrs_lib::Transformer m_transformer;
     mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped> m_sh_detections;
+    ros::Publisher m_pub_vis_u;
+    ros::Publisher m_pub_vis_omega;
     std::string m_node_name;
     //}
 
