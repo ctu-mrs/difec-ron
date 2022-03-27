@@ -49,6 +49,10 @@ find_package(Eigen3 REQUIRED)
 set(Eigen_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIRS})
 set(Eigen_LIBRARIES ${Eigen_LIBRARIES})
 
+generate_dynamic_reconfigure_options(
+  config/FormationControlParams.cfg
+)
+
 catkin_package(
   CATKIN_DEPENDS message_runtime mrs_lib # roscpp rospy std_msgs
 )

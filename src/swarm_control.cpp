@@ -15,9 +15,10 @@
 
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <mrs_msgs/VelocityReferenceStamped.h>
 
 #include <mrs_lib/scope_timer.h>
-#include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
+#include <difec_ron/FormationControlParamsConfig.h>
 
 //}
 
@@ -28,10 +29,9 @@ namespace difec_ron
 
     /* some common type definitions //{ */
 
-    /* using vec3_t = mrs_lib::geometry::vec3_t; */
-    /* using mat3_t = mrs_lib::geometry::mat3_t; */
-    /* using mat6_t = Eigen::Matrix<double, 6, 6>; */
-    
+    // shortcut type to the dynamic reconfigure manager template instance
+    using drmgr_t = mrs_lib::DynamicReconfigureMgr<difec_ron::FormationControlParamsConfig>;
+
     struct det_t
     {
       uint64_t id;
@@ -73,13 +73,24 @@ namespace difec_ron
       m_node_name = "SwarmControl";
 
       /* Load parameters from ROS //{*/
+      NODELET_INFO("Loading default dynamic parameters:");
+      m_drmgr_ptr = std::make_unique<drmgr_t>(nh, m_node_name);
+
+      // CHECK LOADING STATUS
+      if (!m_drmgr_ptr->loaded_successfully())
+      {
+        NODELET_ERROR("Some compulsory parameters were not loaded successfully, ending the node");
+        ros::shutdown();
+        return;
+      }
+
       mrs_lib::ParamLoader pl(nh, m_node_name);
       // LOAD STATIC PARAMETERS
       NODELET_INFO("Loading static parameters:");
       pl.loadParam("world_frame_id", m_world_frame_id);
+      pl.loadParam("uav_frame_id", m_uav_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
-      pl.loadParam("admissible_overshoot_probability", m_admissible_overshoot_prob);
 
       // load the formation
       const auto formation_opt = load_formation(pl);
@@ -100,6 +111,7 @@ namespace difec_ron
       /* Create publishers and subscribers //{ */
       // Initialize transformer
       m_transformer = mrs_lib::Transformer(nh, m_node_name);
+      m_transformer.retryLookupNewest(true);
 
       mrs_lib::SubscribeHandlerOptions shopts(nh);
       shopts.no_message_timeout = ros::Duration(5.0);
@@ -107,9 +119,13 @@ namespace difec_ron
       mrs_lib::construct_object(m_sh_detections, shopts, "detections_in");
 
       //Initialize publishers
+      m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
+      m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
       //}
+
+      m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
       m_main_thread.detach();
@@ -131,6 +147,11 @@ namespace difec_ron
 
     void process_msg(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg)
     {
+      if (msg->poses.empty())
+      {
+        ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: No neighbors detected out of " << m_formation.size()-1 << " total neighbors. Doing nothing.");
+        return;
+      }
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Receiving detections of " << msg->poses.size() << " neighbors out of " << m_formation.size()-1 << " total neighbors.");
 
       const ros::Time now = ros::Time::now();
@@ -189,8 +210,8 @@ namespace difec_ron
         agent_meass.push_back({formation_agent_opt.value(), std::move(det)});
       }
 
-      const auto l = m_admissible_overshoot_prob;
-      const double k_e = 0.5;
+      const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
+      const double k_e = m_drmgr_ptr->config.control__proportional_constant;
       const double eps = 1e-6;
 
       vec3_t u_accum_1 = vec3_t::Zero();
@@ -204,17 +225,17 @@ namespace difec_ron
         // shorthand for the desired relative pose
         const auto& d = meas.formation.desired_relative_pose;
         // heading difference between measured and desired position
-        const double dpsi = m.psi - d.psi;
+        const double psi_md = m.psi - d.psi;
         // rotation matrix corresponding to the heading difference
-        const mat3_t R_dpsi( anax_t(dpsi, vec3_t::UnitZ()) );
+        const mat3_t R_dpsi( anax_t(psi_md, vec3_t::UnitZ()) );
         // position difference between measured and desired position
         const vec3_t p_md = m.p - d.p;
 
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*(m.p - d.p).normalized()*std::erfc(l) + m.p;
-        const double psi_c = m.sig * mrs_lib::signum(dpsi) * std::erfc(l) + m.psi;
+        const vec3_t p_c1 = sig_p*p_md.normalized()*std::erf(l) + m.p;
+        const double psi_c = m.sig * mrs_lib::signum(psi_md) * std::erf(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -233,14 +254,14 @@ namespace difec_ron
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erfc(l) + m.p;
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erf(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
         const double beta = -std::atan2(m.p.y(), m.p.x());
         const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
         const mat3_t C_r = R_beta*m.C*R_beta.transpose();
         const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * std::erfc(l);
+        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * std::erf(l);
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
@@ -252,6 +273,11 @@ namespace difec_ron
         const double tmp2 = d.p.transpose()*S.transpose()*m.p;
         omega_accum_1 += std::clamp(tmp1, 0.0, tmp2);
         omega_accum_2 += std::clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
+
+        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
+        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
+        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c3: " << p_c3.transpose()); */
+        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: psi_c: " << psi_c); */
       }
 
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
@@ -261,6 +287,16 @@ namespace difec_ron
 
       m_pub_vis_u.publish(vector_vis(u, now));
       m_pub_vis_omega.publish(heading_vis(omega, now));
+
+      mrs_msgs::VelocityReferenceStamped vel_out;
+      vel_out.header.frame_id = m_uav_frame_id;
+      vel_out.header.stamp = now;
+      vel_out.reference.velocity.x = u.x();
+      vel_out.reference.velocity.y = u.y();
+      vel_out.reference.velocity.z = u.z();
+      vel_out.reference.heading_rate = omega;
+      vel_out.reference.use_heading_rate = true;
+      m_pub_vel_ref.publish(vel_out);
     }
 
     visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time)
@@ -272,6 +308,9 @@ namespace difec_ron
       mkr.pose.orientation.w = 1.0;
       mkr.scale.x = 0.05; // shaft diameter
       mkr.scale.y = 0.15; // head diameter
+      mkr.color.r = 1.0;
+      mkr.color.b = 1.0;
+      mkr.color.a = 1.0;
       geometry_msgs::Point pnt;
       mkr.points.push_back(pnt);
       pnt.x = vec.x();
@@ -290,11 +329,53 @@ namespace difec_ron
       mkr.pose.orientation.w = 1.0;
       mkr.scale.x = 0.05; // shaft diameter
       mkr.scale.y = 0.15; // head diameter
+      mkr.color.g = 1.0;
+      mkr.color.b = 1.0;
+      mkr.color.a = 1.0;
       geometry_msgs::Point pnt;
       mkr.points.push_back(pnt);
       pnt.z = hdg;
       mkr.points.push_back(pnt);
       return mkr;
+    }
+
+    visualization_msgs::MarkerArray formation_vis(const std::vector<agent_t>& formation, const ros::Time& time)
+    {
+      visualization_msgs::MarkerArray ret;
+      for (const auto& agent : formation)
+      {
+        visualization_msgs::Marker mkr;
+
+        mkr.id = agent.id;
+        mkr.ns = agent.uav_name;
+        mkr.header.frame_id = m_uav_frame_id;
+        mkr.header.stamp = time;
+        mkr.frame_locked = true;
+        mkr.type = visualization_msgs::Marker::ARROW;
+        mkr.pose.orientation.w = 1.0;
+        mkr.scale.x = 0.05; // shaft diameter
+        mkr.scale.y = 0.15; // head diameter
+        mkr.color.r = 1.0;
+        mkr.color.g = 1.0;
+        mkr.color.a = 1.0;
+
+        geometry_msgs::Point pnt;
+
+        const vec3_t& des_pos = agent.desired_relative_pose.p;
+        pnt.x = des_pos.x();
+        pnt.y = des_pos.y();
+        pnt.z = des_pos.z();
+        mkr.points.push_back(pnt);
+
+        const vec3_t des_pos_ori = des_pos + anax_t(agent.desired_relative_pose.psi, vec3_t::UnitZ())*vec3_t::UnitX();
+        pnt.x = des_pos_ori.x();
+        pnt.y = des_pos_ori.y();
+        pnt.z = des_pos_ori.z();
+        mkr.points.push_back(pnt);
+
+        ret.markers.push_back(mkr);
+      }
+      return ret;
     }
 
     mat3_t skew_symmetric(const vec3_t& from)
@@ -436,11 +517,17 @@ namespace difec_ron
     // --------------------------------------------------------------
 
     /* ROS related variables (subscribers, timers etc.) //{ */
+    std::string m_node_name;
+
     mrs_lib::Transformer m_transformer;
+    std::unique_ptr<drmgr_t> m_drmgr_ptr;
     mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped> m_sh_detections;
+
+    ros::Publisher m_pub_vis_formation;
     ros::Publisher m_pub_vis_u;
     ros::Publisher m_pub_vis_omega;
-    std::string m_node_name;
+    ros::Publisher m_pub_vel_ref;
+
     //}
 
   private:
@@ -456,7 +543,6 @@ namespace difec_ron
     double m_throttle_period;
 
     std::vector<agent_t> m_formation;
-    double m_admissible_overshoot_prob;
 
     //}
 

@@ -31,12 +31,14 @@
       <rosparam file="$(find difec_ron)/config/swarm_control.yaml" />
 
       <param name="uav_name" value="$(arg uav_name)" />
-      <param name="world_frame_id" value="$(arg uav_name)/rtk_origin" />
+      <param name="world_frame_id" value="$(arg uav_name)/gps_origin" />
+      <param name="uav_frame_id" value="$(arg uav_name)/fcu_untilted" />
     
       <!-- Subscribers -->
       <remap from="~detections_in" to="uvdar/filteredPoses" />
 
       <!-- Publishers -->
+      <remap from="~velocity_out" to="control_manager/velocity_reference" />
 
     </node>
   
