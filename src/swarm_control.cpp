@@ -11,6 +11,8 @@
 #include <thread>
 #include <algorithm>
 
+#include <boost/circular_buffer.hpp>
+
 #include <nodelet/nodelet.h>
 
 #include <visualization_msgs/Marker.h>
@@ -118,6 +120,8 @@ namespace difec_ron
       // Initialize subscribers
       mrs_lib::construct_object(m_sh_detections, shopts, "detections_in");
 
+      m_period_buffer.set_capacity(50);
+
       //Initialize publishers
       m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
@@ -155,6 +159,10 @@ namespace difec_ron
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Receiving detections of " << msg->poses.size() << " neighbors out of " << m_formation.size()-1 << " total neighbors.");
 
       const ros::Time now = ros::Time::now();
+      static ros::Time prev_action_time = now;
+      const double period = (now - prev_action_time).toSec();
+      m_period_buffer.push_back(period);
+      const double fil_freq = 1.0/median(m_period_buffer);
 
       const auto tf_opt = m_transformer.getTransform(msg->header.frame_id, msg->header.stamp, m_uav_frame_id, now, m_world_frame_id);
       if (!tf_opt.has_value())
@@ -211,7 +219,7 @@ namespace difec_ron
       }
 
       const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
-      const double k_e = m_drmgr_ptr->config.control__proportional_constant;
+      const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
       const double eps = 1e-6;
 
       vec3_t u_accum_1 = vec3_t::Zero();
@@ -234,8 +242,8 @@ namespace difec_ron
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*p_md.normalized()*std::erf(l) + m.p;
-        const double psi_c = m.sig * mrs_lib::signum(psi_md) * std::erf(l) + m.psi;
+        const vec3_t p_c1 = sig_p*p_md.normalized()*std::erf(l);
+        const double psi_c = m.sig * mrs_lib::signum(psi_md) * std::erf(l);
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -254,7 +262,7 @@ namespace difec_ron
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erf(l) + m.p;
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erf(l);
 
         // | --------------------- calculate p_c3 --------------------- |
         const double beta = -std::atan2(m.p.y(), m.p.x());
@@ -283,7 +291,7 @@ namespace difec_ron
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
       const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
 
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ".");
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average frequency: " << fil_freq << "Hz");
 
       m_pub_vis_u.publish(vector_vis(u, now));
       m_pub_vis_omega.publish(heading_vis(omega, now));
@@ -297,6 +305,16 @@ namespace difec_ron
       vel_out.reference.heading_rate = omega;
       vel_out.reference.use_heading_rate = true;
       m_pub_vel_ref.publish(vel_out);
+      prev_action_time = now;
+    }
+
+    double median(const boost::circular_buffer<double>& buffer)
+    {
+      std::vector<double> sorted;
+      sorted.insert(std::begin(sorted), std::begin(buffer), std::end(buffer));
+      const size_t median_pos = std::round(buffer.size()/2);
+      std::nth_element(std::begin(sorted), std::begin(sorted) + median_pos, std::end(sorted));
+      return sorted.at(median_pos);
     }
 
     visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time)
@@ -510,6 +528,7 @@ namespace difec_ron
     std::thread m_main_thread;
     std::string m_uav_name;
     uint64_t m_uvdar_id;
+    boost::circular_buffer<double> m_period_buffer;
 
   private:
     // --------------------------------------------------------------

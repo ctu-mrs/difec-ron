@@ -8,15 +8,6 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/geometries/geometries.hpp>
-
-#include <list>
-
 #include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
 
 #include <mrs_lib/param_loader.h>
