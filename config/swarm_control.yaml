@@ -2,6 +2,7 @@ transform_lookup_timeout: 0.3 # seconds
 throttle_period: 0.1 # seconds
 
 control:
+  enabled: false
   admissible_overshoot_probability: 0.3
   proportional_constant: 0.4
 
