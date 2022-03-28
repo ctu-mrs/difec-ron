@@ -14,8 +14,8 @@ windows:
   - status:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForRos; roslaunch mrs_uav_status status.launch
-        - export UAV_NAME=uav2; waitForRos; roslaunch mrs_uav_status status.launch
+        - export UAV_NAME=uav1; waitForRos; waitForSimulation; roslaunch mrs_uav_status status.launch
+        - export UAV_NAME=uav2; waitForRos; waitForSimulation; roslaunch mrs_uav_status status.launch
   - spawn:
       layout: even-vertical
       panes:
@@ -55,8 +55,8 @@ windows:
   - uv_observer:
       layout: even-vertical
       panes:
-        - waitForCompile; gz world --pause=0; sleep 6;  export UAV_NAME=uav1; waitForControl; roslaunch difec_ron sim_three_sided.launch
-        - waitForCompile; gz world --pause=0; sleep 6;  export UAV_NAME=uav2; waitForControl; roslaunch difec_ron sim_three_sided.launch
+        - export UAV_NAME=uav1; waitForControl; waitForCompile; gz world --pause=0; sleep 6;  export UAV_NAME=uav1; waitForControl; roslaunch difec_ron sim_three_sided.launch
+        - export UAV_NAME=uav2; waitForControl; waitForCompile; gz world --pause=0; sleep 6;  export UAV_NAME=uav2; waitForControl; roslaunch difec_ron sim_three_sided.launch
   - kalman_filter:
       layout: even-vertical
       panes:
@@ -70,7 +70,7 @@ windows:
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; waitForRos; sleep 80; gz physics -u 50
+        - waitForSimulation; sleep 100; gz physics -u 50
   - tf_connector:
       layout: even-vertical
       panes:
