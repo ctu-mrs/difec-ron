@@ -8,8 +8,7 @@ Panels:
         - /Status1
         - /uav11
         - /uav21
-        - /uav21/formation control1
-      Splitter Ratio: 0.5
+      Splitter Ratio: 0.5617647171020508
     Tree Height: 769
   - Class: rviz/Selection
     Name: Selection
@@ -57,7 +56,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Group
       Displays:
-        - Angle Tolerance: 0.10000000149011612
+        - Angle Tolerance: 0
           Class: rviz/Odometry
           Covariance:
             Orientation:
@@ -77,7 +76,7 @@ Visualization Manager:
           Enabled: true
           Keep: 1
           Name: odometry
-          Position Tolerance: 0.10000000149011612
+          Position Tolerance: 0
           Queue Size: 10
           Shape:
             Alpha: 1
@@ -152,11 +151,20 @@ Visualization Manager:
           Topic: /uav1/uvdar/filteredPoses
           Unreliable: false
           Value: true
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /uav1/swarm_control/visualization_p_c12
+          Name: p^c12
+          Namespaces:
+            p^c1 - p^d: true
+            p^c2 - p^dR: true
+          Queue Size: 100
+          Value: true
       Enabled: true
       Name: uav1
     - Class: rviz/Group
       Displays:
-        - Angle Tolerance: 0.10000000149011612
+        - Angle Tolerance: 0
           Class: rviz/Odometry
           Covariance:
             Orientation:
@@ -176,8 +184,8 @@ Visualization Manager:
           Enabled: true
           Keep: 1
           Name: odometry
-          Position Tolerance: 0.10000000149011612
-          Queue Size: 10
+          Position Tolerance: 0
+          Queue Size: 20
           Shape:
             Alpha: 1
             Axes Length: 1
@@ -251,13 +259,22 @@ Visualization Manager:
           Topic: /uav2/uvdar/filteredPoses
           Unreliable: false
           Value: true
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /uav2/swarm_control/visualization_p_c12
+          Name: p^c12
+          Namespaces:
+            p^c1 - p^d: true
+            p^c2 - p^dR: true
+          Queue Size: 100
+          Value: true
       Enabled: true
       Name: uav2
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: uav1/stable_origin
+    Fixed Frame: uav2/gps_origin
     Frame Rate: 30
   Name: root
   Tools:
@@ -281,7 +298,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 13.415825843811035
+      Distance: 11.059943199157715
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -289,17 +306,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.22174298763275146
-        Y: 1.0425450801849365
+        X: 2.6955783367156982
+        Y: -0.528178334236145
         Z: 2.86102294921875e-06
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5797972679138184
+      Pitch: 1.120397925376892
       Target Frame: <Fixed Frame>
-      Yaw: 1.9853814840316772
+      Yaw: 4.565413951873779
     Saved: ~
 Window Geometry:
   Displays:

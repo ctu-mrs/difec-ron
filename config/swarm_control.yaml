@@ -3,8 +3,8 @@ throttle_period: 0.1 # seconds
 
 control:
   enabled: false
-  admissible_overshoot_probability: 0.3
-  proportional_constant: 0.4
+  admissible_overshoot_probability: 0.05
+  proportional_constant: 0.6
 
 formation:
   uav1:
@@ -13,5 +13,5 @@ formation:
     heading: 0.0
   uav2:
     uvdar_id: 1
-    position: [4.0, 2.0, 0.0]
+    position: [2.0, 2.0, 0.0]
     heading: 0.0

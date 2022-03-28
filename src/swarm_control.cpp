@@ -141,10 +141,20 @@ namespace difec_ron
       m_vis_p1_color.g = 0.5;
       m_vis_p1_color.b = 1.0;
 
+      m_vis_pmd_color.a = 0.5;
+      m_vis_pmd_color.r = 0.5;
+      m_vis_pmd_color.g = 0.5;
+      m_vis_pmd_color.b = 1.0;
+
       m_vis_p2_color.a = 1.0;
       m_vis_p2_color.r = 0.5;
       m_vis_p2_color.g = 1.0;
       m_vis_p2_color.b = 0.5;
+
+      m_vis_pmdR_color.a = 0.5;
+      m_vis_pmdR_color.r = 0.5;
+      m_vis_pmdR_color.g = 1.0;
+      m_vis_pmdR_color.b = 0.5;
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
       m_main_thread.detach();
@@ -299,8 +309,8 @@ namespace difec_ron
         const vec3_t p_c3 = R_tot*m.p;
 
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
-        u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), m.p - d.p);
-        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), m.p - p_dR);
+        u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), p_md);
+        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), p_mdR);
         const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
         const double tmp2 = d.p.transpose()*S.transpose()*m.p;
         omega_accum_1 += clamp(tmp1, 0.0, tmp2);
@@ -309,13 +319,25 @@ namespace difec_ron
         if (visualize)
         {
           visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
-          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
-          p_c1d_vis.id = 2*meas.detected.id;
+          p_c1d_vis.id = 4*meas.detected.id;
           p_c1d_vis.ns = "p^c1 - p^d";
-          p_c2dR_vis.id = 2*meas.detected.id + 1;
+
+          visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
+          p_md_vis.id = 4*meas.detected.id + 1;
+          p_md_vis.ns = "p^m - p^d";
+
+          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
+          p_c2dR_vis.id = 4*meas.detected.id + 2;
           p_c2dR_vis.ns = "p^c2 - p^dR";
+
+          visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdR, now, m_vis_pmdR_color);
+          p_mdR_vis.id = 4*meas.detected.id + 3;
+          p_mdR_vis.ns = "p^m - p^dR";
+
           p_cs.markers.push_back(p_c1d_vis);
+          p_cs.markers.push_back(p_md_vis);
           p_cs.markers.push_back(p_c2dR_vis);
+          p_cs.markers.push_back(p_mdR_vis);
         }
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
@@ -668,7 +690,9 @@ namespace difec_ron
     boost::circular_buffer<double> m_period_buffer;
     std_msgs::ColorRGBA m_vis_u_color;
     std_msgs::ColorRGBA m_vis_p1_color;
+    std_msgs::ColorRGBA m_vis_pmd_color;
     std_msgs::ColorRGBA m_vis_p2_color;
+    std_msgs::ColorRGBA m_vis_pmdR_color;
 
   private:
     // --------------------------------------------------------------

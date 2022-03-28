@@ -51,7 +51,7 @@ windows:
   - rviz:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; roslaunch uvdar_core multimodal_hypothesis_rviz.launch
+        - export UAV_NAME=uav1; waitForControl; rosparam set use_sim_time true; roslaunch uvdar_core multimodal_hypothesis_rviz.launch
   - uv_observer:
       layout: even-vertical
       panes:
@@ -70,7 +70,7 @@ windows:
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; waitForRos; sleep 80; gz physics -u 50
+        - waitForSimulation; waitForRos; sleep 80; gz physics -u 30
   - tf_connector:
       layout: even-vertical
       panes:

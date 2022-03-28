@@ -21,6 +21,9 @@ data/
 # python cache
 *.pyc
 
+# tmuxinator cache
+.tmuxinator.yml
+
 # other data files
 *.csv
 *.pdf
