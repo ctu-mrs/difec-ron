@@ -247,7 +247,7 @@ namespace difec_ron
       // prepare the necessary constants
       const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
       const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
-      const double eps = 1e-6;
+      const double eps = 1e-9;
 
       vec3_t u_accum_1 = vec3_t::Zero();
       vec3_t u_accum_2 = vec3_t::Zero();
@@ -275,14 +275,14 @@ namespace difec_ron
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
         // construct the matrices V, L and then C_t
-        const vec3_t v_d1 = vec3_t(-p_dR.z(), p_dR.y(), 0).normalized();
+        const vec3_t v_d1 = vec3_t(-p_dR.y(), p_dR.x(), 0).normalized();
         const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
         const vec3_t v_d3(0, 0, 1);
         mat3_t V;
         V.col(0) = v_d1;
         V.col(1) = v_d2;
         V.col(2) = v_d3;
-        const mat3_t L = vec3_t(m.sig, eps, eps).asDiagonal();
+        const mat3_t L = vec3_t(m.sig*m.sig, eps, eps).asDiagonal();
         const mat3_t C_t = V*L*V.transpose();
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
