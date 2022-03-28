@@ -124,12 +124,27 @@ namespace difec_ron
 
       //Initialize publishers
       m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
+      m_pub_vis_p_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c12", 10, true);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
       //}
 
       m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
+
+      m_vis_u_color.a = 1.0;
+      m_vis_u_color.r = 1.0;
+      m_vis_u_color.b = 1.0;
+
+      m_vis_p1_color.a = 1.0;
+      m_vis_p1_color.r = 0.5;
+      m_vis_p1_color.g = 0.5;
+      m_vis_p1_color.b = 1.0;
+
+      m_vis_p2_color.a = 1.0;
+      m_vis_p2_color.r = 0.5;
+      m_vis_p2_color.g = 1.0;
+      m_vis_p2_color.b = 0.5;
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
       m_main_thread.detach();
@@ -138,6 +153,11 @@ namespace difec_ron
     }
     //}
 
+    // --------------------------------------------------------------
+    // |                    Main implementation                     |
+    // --------------------------------------------------------------
+
+    /* main_loop() method //{ */
     void main_loop()
     {
       const ros::WallDuration timeout(1.0/10.0);
@@ -148,7 +168,9 @@ namespace difec_ron
           process_msg(msg_ptr);
       }
     }
+    //}
 
+    /* process_msg() method //{ */
     void process_msg(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg)
     {
       if (msg->poses.empty())
@@ -218,9 +240,14 @@ namespace difec_ron
         agent_meass.push_back({formation_agent_opt.value(), std::move(det)});
       }
 
+      // some debugging shit
+      visualization_msgs::MarkerArray p_cs;
+      const bool visualize = m_pub_vis_p_cs.getNumSubscribers() > 0;
+
+      // prepare the necessary constants
       const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
       const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
-      const double eps = 1e-6;
+      const double eps = 1e-9;
 
       vec3_t u_accum_1 = vec3_t::Zero();
       vec3_t u_accum_2 = vec3_t::Zero();
@@ -248,17 +275,15 @@ namespace difec_ron
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
         // construct the matrices V, L and then C_t
-        const vec3_t v_d1 = vec3_t(-p_dR.z(), p_dR.y(), 0).normalized();
+        const vec3_t v_d1 = vec3_t(-p_dR.y(), p_dR.x(), 0).normalized();
         const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
         const vec3_t v_d3(0, 0, 1);
         mat3_t V;
         V.col(0) = v_d1;
         V.col(1) = v_d2;
         V.col(2) = v_d3;
-        const mat3_t L = vec3_t(m.sig, eps, eps).asDiagonal();
-        // TODO: shouldn't this be V*L*V.transpose()?
-        // TODO: proper inverse calculation and checking
-        const mat3_t C_t = V*L*V.inverse();
+        const mat3_t L = vec3_t(m.sig*m.sig, eps, eps).asDiagonal();
+        const mat3_t C_t = V*L*V.transpose();
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
@@ -276,12 +301,22 @@ namespace difec_ron
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
         u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), m.p - d.p);
         u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), m.p - p_dR);
-        // TODO: fix this, currently the vector sizes do not match
         const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
         const double tmp2 = d.p.transpose()*S.transpose()*m.p;
         omega_accum_1 += clamp(tmp1, 0.0, tmp2);
         omega_accum_2 += clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
 
+        if (visualize)
+        {
+          visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
+          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
+          p_c1d_vis.id = 2*meas.detected.id;
+          p_c1d_vis.ns = "p^c1 - p^d";
+          p_c2dR_vis.id = 2*meas.detected.id + 1;
+          p_c2dR_vis.ns = "p^c2 - p^dR";
+          p_cs.markers.push_back(p_c1d_vis);
+          p_cs.markers.push_back(p_c2dR_vis);
+        }
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c3: " << p_c3.transpose()); */
@@ -291,23 +326,36 @@ namespace difec_ron
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
       const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
 
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average frequency: " << fil_freq << "Hz");
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
 
-      m_pub_vis_u.publish(vector_vis(u, now));
+      m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now));
+      if (visualize)
+        m_pub_vis_p_cs.publish(p_cs);
 
-      mrs_msgs::VelocityReferenceStamped vel_out;
-      vel_out.header.frame_id = m_uav_frame_id;
-      vel_out.header.stamp = now;
-      vel_out.reference.velocity.x = u.x();
-      vel_out.reference.velocity.y = u.y();
-      vel_out.reference.velocity.z = u.z();
-      vel_out.reference.heading_rate = omega;
-      vel_out.reference.use_heading_rate = true;
-      m_pub_vel_ref.publish(vel_out);
+      if (m_drmgr_ptr->config.control__enabled)
+      {
+        mrs_msgs::VelocityReferenceStamped vel_out;
+        vel_out.header.frame_id = m_uav_frame_id;
+        vel_out.header.stamp = now;
+        vel_out.reference.velocity.x = u.x();
+        vel_out.reference.velocity.y = u.y();
+        vel_out.reference.velocity.z = u.z();
+        vel_out.reference.heading_rate = omega;
+        vel_out.reference.use_heading_rate = true;
+        m_pub_vel_ref.publish(vel_out);
+      }
+      else
+        ROS_WARN_STREAM_THROTTLE(m_throttle_period, "Control is disabled, not publishing to MRS UAV pipeline!");
       prev_action_time = now;
     }
+    //}
 
+    // --------------------------------------------------------------
+    // |                  Mathematical functions                    |
+    // --------------------------------------------------------------
+
+    /* median() method //{ */
     double median(const boost::circular_buffer<double>& buffer) const
     {
       std::vector<double> sorted;
@@ -316,7 +364,9 @@ namespace difec_ron
       std::nth_element(std::begin(sorted), std::begin(sorted) + median_pos, std::end(sorted));
       return sorted.at(median_pos);
     }
+    //}
 
+    /* inv_cdf() method //{ */
     // Inverse cumulative distribution function (aka the probit function)
     // Taken from: https://www.quantstart.com/articles/Statistical-Distributions-in-C/
     double inv_cdf(const double& quantile) const
@@ -366,8 +416,58 @@ namespace difec_ron
         return -1.0*inv_cdf(1-quantile);
       }
     }
+    //}
 
-    visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time) const
+    /* skew_symmetric() method //{ */
+    mat3_t skew_symmetric(const vec3_t& from) const
+    {
+      mat3_t ss;
+      ss << 0, -from.z(), from.y(),
+            from.z(), 0, -from.x(),
+            -from.y(), from.x(), 0;
+      return ss;
+    }
+    //}
+
+    /* clamp() method //{ */
+    double clamp(const double what, const double a, const double b) const
+    {
+      double min = a;
+      double max = b;
+      if (min > max)
+        std::swap(min, max);
+      if (what < min || what > max)
+        return 0.0;
+      else
+        return what;
+    }
+
+    vec3_t clamp(const vec3_t& what, const vec3_t& a, const vec3_t& b) const
+    {
+      vec3_t min = a;
+      vec3_t max = b;
+      double nmin = min.norm();
+      double nmax = max.norm();
+      if (nmin > nmax)
+      {
+        std::swap(min, max);
+        std::swap(nmin, nmax);
+      }
+      const vec3_t dir = max - min;
+      const double proj = what.dot(dir)/dir.norm();
+      if (proj < nmin || proj > nmax)
+        return vec3_t::Zero();
+      else
+        return what;
+    }
+    //}
+
+    // --------------------------------------------------------------
+    // |                  Visualization functions                   |
+    // --------------------------------------------------------------
+
+    /* vector_vis() method //{ */
+    visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time, const std_msgs::ColorRGBA& color) const
     {
       visualization_msgs::Marker mkr;
       mkr.header.frame_id = m_uav_frame_id;
@@ -376,9 +476,7 @@ namespace difec_ron
       mkr.pose.orientation.w = 1.0;
       mkr.scale.x = 0.05; // shaft diameter
       mkr.scale.y = 0.15; // head diameter
-      mkr.color.r = 1.0;
-      mkr.color.b = 1.0;
-      mkr.color.a = 1.0;
+      mkr.color = color;
       geometry_msgs::Point pnt;
       mkr.points.push_back(pnt);
       pnt.x = vec.x();
@@ -387,7 +485,9 @@ namespace difec_ron
       mkr.points.push_back(pnt);
       return mkr;
     }
+    //}
 
+    /* heading_vis() method //{ */
     visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time) const
     {
       visualization_msgs::Marker mkr;
@@ -406,7 +506,9 @@ namespace difec_ron
       mkr.points.push_back(pnt);
       return mkr;
     }
+    //}
 
+    /* formation_vis() method //{ */
     visualization_msgs::MarkerArray formation_vis(const std::vector<agent_t>& formation, const ros::Time& time) const
     {
       visualization_msgs::MarkerArray ret;
@@ -445,47 +547,13 @@ namespace difec_ron
       }
       return ret;
     }
+    //}
 
-    mat3_t skew_symmetric(const vec3_t& from) const
-    {
-      mat3_t ss;
-      ss << 0, -from.z(), from.y(),
-            from.z(), 0, -from.x(),
-            -from.y(), from.x(), 0;
-      return ss;
-    }
+    // --------------------------------------------------------------
+    // |                  Miscellaneous functions                   |
+    // --------------------------------------------------------------
 
-    double clamp(const double what, const double a, const double b) const
-    {
-      double min = a;
-      double max = b;
-      if (min > max)
-        std::swap(min, max);
-      if (what < min || what > max)
-        return 0.0;
-      else
-        return what;
-    }
-
-    vec3_t clamp(const vec3_t& what, const vec3_t& a, const vec3_t& b) const
-    {
-      vec3_t min = a;
-      vec3_t max = b;
-      double nmin = min.norm();
-      double nmax = max.norm();
-      if (nmin > nmax)
-      {
-        std::swap(min, max);
-        std::swap(nmin, nmax);
-      }
-      const vec3_t dir = max - min;
-      const double proj = what.dot(dir)/dir.norm();
-      if (proj < nmin || proj > nmax)
-        return vec3_t::Zero();
-      else
-        return what;
-    }
-
+    /* to_string() method //{ */
     std::string to_string(XmlRpc::XmlRpcValue::Type type) const
     {
       switch (type)
@@ -502,6 +570,7 @@ namespace difec_ron
       }
       return "TypeUnknown";
     }
+    //}
 
     /* load_formation() method //{ */
     std::optional<std::vector<agent_t>> load_formation(mrs_lib::ParamLoader& pl)
@@ -597,6 +666,9 @@ namespace difec_ron
     std::string m_uav_name;
     uint64_t m_uvdar_id;
     boost::circular_buffer<double> m_period_buffer;
+    std_msgs::ColorRGBA m_vis_u_color;
+    std_msgs::ColorRGBA m_vis_p1_color;
+    std_msgs::ColorRGBA m_vis_p2_color;
 
   private:
     // --------------------------------------------------------------
@@ -611,6 +683,7 @@ namespace difec_ron
     mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped> m_sh_detections;
 
     ros::Publisher m_pub_vis_formation;
+    ros::Publisher m_pub_vis_p_cs;
     ros::Publisher m_pub_vis_u;
     ros::Publisher m_pub_vis_omega;
     ros::Publisher m_pub_vel_ref;
