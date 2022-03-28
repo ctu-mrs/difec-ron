@@ -242,8 +242,8 @@ namespace difec_ron
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*p_md.normalized()*std::erf(l);
-        const double psi_c = m.sig * mrs_lib::signum(psi_md) * std::erf(l);
+        const vec3_t p_c1 = sig_p*p_md.normalized()*inv_cdf(l) + m.p;
+        const double psi_c = m.sig * mrs_lib::signum(psi_md) * inv_cdf(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -262,25 +262,25 @@ namespace difec_ron
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * std::erf(l);
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * inv_cdf(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
         const double beta = -std::atan2(m.p.y(), m.p.x());
         const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
         const mat3_t C_r = R_beta*m.C*R_beta.transpose();
         const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * std::erf(l);
+        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * inv_cdf(l);
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
-        u_accum_1 += clamp(p_c1 - d.p, d.p, m.p);
-        u_accum_2 += clamp(p_c2 - p_dR, p_dR, m.p);
+        u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), m.p - d.p);
+        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), m.p - p_dR);
         // TODO: fix this, currently the vector sizes do not match
         const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
         const double tmp2 = d.p.transpose()*S.transpose()*m.p;
-        omega_accum_1 += std::clamp(tmp1, 0.0, tmp2);
-        omega_accum_2 += std::clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
+        omega_accum_1 += clamp(tmp1, 0.0, tmp2);
+        omega_accum_2 += clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
 
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
@@ -308,7 +308,7 @@ namespace difec_ron
       prev_action_time = now;
     }
 
-    double median(const boost::circular_buffer<double>& buffer)
+    double median(const boost::circular_buffer<double>& buffer) const
     {
       std::vector<double> sorted;
       sorted.insert(std::begin(sorted), std::begin(buffer), std::end(buffer));
@@ -317,7 +317,57 @@ namespace difec_ron
       return sorted.at(median_pos);
     }
 
-    visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time)
+    // Inverse cumulative distribution function (aka the probit function)
+    // Taken from: https://www.quantstart.com/articles/Statistical-Distributions-in-C/
+    double inv_cdf(const double& quantile) const
+    {
+      // This is the Beasley-Springer-Moro algorithm which can 
+      // be found in Glasserman [2004]. We won't go into the
+      // details here, so have a look at the reference for more info
+      static double a[4] = {   2.50662823884,
+                             -18.61500062529,
+                              41.39119773534,
+                             -25.44106049637};
+
+      static double b[4] = {  -8.47351093090,
+                              23.08336743743,
+                             -21.06224101826,
+                               3.13082909833};
+
+      static double c[9] = {0.3374754822726147,
+                            0.9761690190917186,
+                            0.1607979714918209,
+                            0.0276438810333863,
+                            0.0038405729373609,
+                            0.0003951896511919,
+                            0.0000321767881768,
+                            0.0000002888167364,
+                            0.0000003960315187};
+
+      if (quantile >= 0.5 && quantile <= 0.92) {
+        double num = 0.0;
+        double denom = 1.0;
+
+        for (int i=0; i<4; i++) {
+          num += a[i] * pow((quantile - 0.5), 2*i + 1);
+          denom += b[i] * pow((quantile - 0.5), 2*i);
+        }
+        return num/denom;
+
+      } else if (quantile > 0.92 && quantile < 1) {
+        double num = 0.0;
+
+        for (int i=0; i<9; i++) {
+          num += c[i] * pow((log(-log(1-quantile))), i);
+        }
+        return num;
+
+      } else {
+        return -1.0*inv_cdf(1-quantile);
+      }
+    }
+
+    visualization_msgs::Marker vector_vis(const vec3_t& vec, const ros::Time& time) const
     {
       visualization_msgs::Marker mkr;
       mkr.header.frame_id = m_uav_frame_id;
@@ -338,7 +388,7 @@ namespace difec_ron
       return mkr;
     }
 
-    visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time)
+    visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time) const
     {
       visualization_msgs::Marker mkr;
       mkr.header.frame_id = m_uav_frame_id;
@@ -357,7 +407,7 @@ namespace difec_ron
       return mkr;
     }
 
-    visualization_msgs::MarkerArray formation_vis(const std::vector<agent_t>& formation, const ros::Time& time)
+    visualization_msgs::MarkerArray formation_vis(const std::vector<agent_t>& formation, const ros::Time& time) const
     {
       visualization_msgs::MarkerArray ret;
       for (const auto& agent : formation)
@@ -396,7 +446,7 @@ namespace difec_ron
       return ret;
     }
 
-    mat3_t skew_symmetric(const vec3_t& from)
+    mat3_t skew_symmetric(const vec3_t& from) const
     {
       mat3_t ss;
       ss << 0, -from.z(), from.y(),
@@ -405,20 +455,38 @@ namespace difec_ron
       return ss;
     }
 
-    vec3_t clamp(const vec3_t& what, const vec3_t& min, const vec3_t& max)
+    double clamp(const double what, const double a, const double b) const
     {
-      const vec3_t dir = max - min;
-      const double len = dir.norm();
-      const double proj = what.dot(dir)/len;
-      if (proj < 0)
-        return vec3_t::Zero();
-      else if (proj > len)
-        return max;
+      double min = a;
+      double max = b;
+      if (min > max)
+        std::swap(min, max);
+      if (what < min || what > max)
+        return 0.0;
       else
         return what;
     }
 
-    std::string to_string(XmlRpc::XmlRpcValue::Type type)
+    vec3_t clamp(const vec3_t& what, const vec3_t& a, const vec3_t& b) const
+    {
+      vec3_t min = a;
+      vec3_t max = b;
+      double nmin = min.norm();
+      double nmax = max.norm();
+      if (nmin > nmax)
+      {
+        std::swap(min, max);
+        std::swap(nmin, nmax);
+      }
+      const vec3_t dir = max - min;
+      const double proj = what.dot(dir)/dir.norm();
+      if (proj < nmin || proj > nmax)
+        return vec3_t::Zero();
+      else
+        return what;
+    }
+
+    std::string to_string(XmlRpc::XmlRpcValue::Type type) const
     {
       switch (type)
       {
@@ -513,7 +581,7 @@ namespace difec_ron
     //}
 
     /* print_formation() method //{ */
-    void print_formation(const std::vector<agent_t>& m_formation)
+    void print_formation(const std::vector<agent_t>& m_formation) const
     {
       for (const auto& agent : m_formation)
       {

@@ -71,6 +71,10 @@ windows:
       layout: even-vertical
       panes:
         - waitForSimulation; waitForRos; sleep 80; gz physics -u 50
+  - tf_connector:
+      layout: even-vertical
+      panes:
+        - waitForSimulation; waitForRos; roslaunch mrs_uav_odometry tf_connector.launch
   - goto:
       layout: even-vertical
       panes:
