@@ -70,7 +70,7 @@ windows:
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; sleep 100; gz physics -u 50
+        - waitForSimulation; sleep 40; gz physics -u 50
   - tf_connector:
       layout: even-vertical
       panes:
