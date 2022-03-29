@@ -279,8 +279,8 @@ namespace difec_ron
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*p_md.normalized()*inv_cdf(l) + m.p;
-        const double psi_c = m.sig * mrs_lib::signum(psi_md) * inv_cdf(l) + m.psi;
+        const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::inv_cdf(l) + m.p;
+        const double psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::inv_cdf(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -297,14 +297,14 @@ namespace difec_ron
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * inv_cdf(l) + m.p;
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::inv_cdf(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
         const double beta = -std::atan2(m.p.y(), m.p.x());
         const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
         const mat3_t C_r = R_beta*m.C*R_beta.transpose();
         const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * inv_cdf(l);
+        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::inv_cdf(l);
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
@@ -385,58 +385,6 @@ namespace difec_ron
       const size_t median_pos = std::round(buffer.size()/2);
       std::nth_element(std::begin(sorted), std::begin(sorted) + median_pos, std::end(sorted));
       return sorted.at(median_pos);
-    }
-    //}
-
-    /* inv_cdf() method //{ */
-    // Inverse cumulative distribution function (aka the probit function)
-    // Taken from: https://www.quantstart.com/articles/Statistical-Distributions-in-C/
-    double inv_cdf(const double& quantile) const
-    {
-      // This is the Beasley-Springer-Moro algorithm which can 
-      // be found in Glasserman [2004]. We won't go into the
-      // details here, so have a look at the reference for more info
-      static double a[4] = {   2.50662823884,
-                             -18.61500062529,
-                              41.39119773534,
-                             -25.44106049637};
-
-      static double b[4] = {  -8.47351093090,
-                              23.08336743743,
-                             -21.06224101826,
-                               3.13082909833};
-
-      static double c[9] = {0.3374754822726147,
-                            0.9761690190917186,
-                            0.1607979714918209,
-                            0.0276438810333863,
-                            0.0038405729373609,
-                            0.0003951896511919,
-                            0.0000321767881768,
-                            0.0000002888167364,
-                            0.0000003960315187};
-
-      if (quantile >= 0.5 && quantile <= 0.92) {
-        double num = 0.0;
-        double denom = 1.0;
-
-        for (int i=0; i<4; i++) {
-          num += a[i] * pow((quantile - 0.5), 2*i + 1);
-          denom += b[i] * pow((quantile - 0.5), 2*i);
-        }
-        return num/denom;
-
-      } else if (quantile > 0.92 && quantile < 1) {
-        double num = 0.0;
-
-        for (int i=0; i<9; i++) {
-          num += c[i] * pow((log(-log(1-quantile))), i);
-        }
-        return num;
-
-      } else {
-        return -1.0*inv_cdf(1-quantile);
-      }
     }
     //}
 

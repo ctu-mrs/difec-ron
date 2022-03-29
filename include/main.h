@@ -18,6 +18,7 @@
 #include <mrs_lib/geometry/conversions.h>
 #include <mrs_lib/vector_converter.h>
 #include <mrs_lib/utils.h>
+#include <mrs_lib/math.h>
 
 namespace difec_ron
 {
