@@ -65,8 +65,8 @@ windows:
   - difec_ron:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch
-        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch
+        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=true
+        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=true
   - slow_down:
       layout: even-vertical
       panes:

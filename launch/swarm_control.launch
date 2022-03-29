@@ -4,6 +4,7 @@
 
   <arg name="uav_name" default="$(optenv UAV_NAME uav)"/>
   <arg name="respawn" default="false" />
+  <arg name="use_raw_measurements" default="false" />
 
   <arg name="rosbag_remap" default="false" />
   <arg unless="$(arg rosbag_remap)" name="suf" value=""/>
@@ -24,6 +25,9 @@
   <arg unless="$(arg standalone)" name="nodelet_load" value="load $(arg swarm_nodelet) $(arg manager)"/>
   <arg     if="$(arg standalone)" name="nodelet_load" value="standalone $(arg swarm_nodelet)"/>
 
+  <arg unless="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/filteredPoses"/>
+  <arg     if="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/mergedMeasurements"/>
+
   <group ns="$(arg uav_name)">
 
     <node pkg="nodelet" type="nodelet" name="swarm_control" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
@@ -35,12 +39,20 @@
       <param name="uav_frame_id" value="$(arg uav_name)/fcu_untilted" />
     
       <!-- Subscribers -->
-      <remap from="~detections_in" to="uvdar/filteredPoses" />
+      <remap from="~detections_in" to="$(arg detections_topic)" />
 
       <!-- Publishers -->
       <remap from="~velocity_out" to="control_manager/velocity_reference" />
 
     </node>
+
+    <group if="$(arg use_raw_measurements)">
+
+      <node pkg="topic_tools" type="relay" name="uvdar_relayA" args="uvdar/measuredPosesB uvdar/mergedMeasurements" output="screen" />
+      <node pkg="topic_tools" type="relay" name="uvdar_relayB" args="uvdar/measuredPosesL uvdar/mergedMeasurements" output="screen" />
+      <node pkg="topic_tools" type="relay" name="uvdar_relayC" args="uvdar/measuredPosesR uvdar/mergedMeasurements" output="screen" />
+    
+    </group>
   
   </group>
 
