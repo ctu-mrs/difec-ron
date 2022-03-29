@@ -279,8 +279,8 @@ namespace difec_ron
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::inv_cdf(l) + m.p;
-        const double psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::inv_cdf(l) + m.psi;
+        const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::probit(l) + m.p;
+        const double psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
@@ -297,14 +297,14 @@ namespace difec_ron
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::inv_cdf(l) + m.p;
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::probit(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
         const double beta = -std::atan2(m.p.y(), m.p.x());
         const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
         const mat3_t C_r = R_beta*m.C*R_beta.transpose();
         const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::inv_cdf(l);
+        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::probit(l);
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
