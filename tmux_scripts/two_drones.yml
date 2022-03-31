@@ -19,8 +19,8 @@ windows:
   - spawn:
       layout: even-vertical
       panes:
-        - waitForSimulation; rosservice call /mrs_drone_spawner/spawn  "1 $UAV_TYPE --pos-file $(rospack find uvdar_core)/scripts/position1.csv --enable-rangefinder --enable-ground-truth --enable-dual-uv-cameras --enable-back-uv-camera --uvcam_calib_file \"$(rospack find uvdar_core)/include/OCamCalib/config/calib_results_bf_uv_fe.txt\" --enable-uv-leds --uvled_s_l 0 --uvled_s_r 1"
-        - waitForSimulation; sleep 12; rosservice call /mrs_drone_spawner/spawn  "2 $UAV_TYPE --pos-file $(rospack find uvdar_core)/scripts/position2.csv --enable-rangefinder --enable-ground-truth --enable-dual-uv-cameras --enable-back-uv-camera --uvcam_calib_file \"$(rospack find uvdar_core)/include/OCamCalib/config/calib_results_bf_uv_fe.txt\" --enable-uv-leds --uvled_s_l 2 --uvled_s_r 3"
+        - waitForSimulation; rosservice call /mrs_drone_spawner/spawn  "1 $UAV_TYPE --pos-file $(rospack find uvdar_core)/scripts/position1.csv --enable-rangefinder --enable-ground-truth --enable-dual-uv-cameras --enable-back-uv-camera --uvcam_calib_file \"$(rospack find uvdar_core)/include/OCamCalib/config/calib_results_bf_uv_fe.txt\" --enable-uv-leds --uvled_s_first 0"
+        - waitForSimulation; sleep 12; rosservice call /mrs_drone_spawner/spawn  "2 $UAV_TYPE --pos-file $(rospack find uvdar_core)/scripts/position2.csv --enable-rangefinder --enable-ground-truth --enable-dual-uv-cameras --enable-back-uv-camera --uvcam_calib_file \"$(rospack find uvdar_core)/include/OCamCalib/config/calib_results_bf_uv_fe.txt\" --enable-uv-leds --uvled_s_first 4"
   - sq_setter:
       layout: even-vertical
       panes:
@@ -56,21 +56,21 @@ windows:
       layout: even-vertical
       panes:
         - export UAV_NAME=uav1; waitForControl; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
-        - export UAV_NAME=uav2; waitForControl; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
+        # - export UAV_NAME=uav2; waitForControl; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
   - kalman_filter:
       layout: even-vertical
       panes:
         - export UAV_NAME=uav1; waitForControl; roslaunch uvdar_core uvdar_kalman_identified_3.launch output_frame:=$UAV_NAME/stable_origin
-        - export UAV_NAME=uav2; waitForControl; roslaunch uvdar_core uvdar_kalman_identified_3.launch output_frame:=$UAV_NAME/stable_origin
+        # - export UAV_NAME=uav2; waitForControl; roslaunch uvdar_core uvdar_kalman_identified_3.launch output_frame:=$UAV_NAME/stable_origin
   - difec_ron:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=true
-        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=true
+        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
+        # - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; sleep 40; gz physics -u 50
+        - waitForSimulation; sleep 40; gz physics -u 100
   - tf_connector:
       layout: even-vertical
       panes:
