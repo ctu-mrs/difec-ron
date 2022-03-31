@@ -125,6 +125,7 @@ namespace difec_ron
       //Initialize publishers
       m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
       m_pub_vis_p_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c12", 10, true);
+      m_pub_vis_psi_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_psi_comp", 10, true);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
@@ -155,6 +156,33 @@ namespace difec_ron
       m_vis_pmdR_color.r = 0.5;
       m_vis_pmdR_color.g = 1.0;
       m_vis_pmdR_color.b = 0.5;
+
+      
+
+      m_vis_omega_color.a = 1.0;
+      m_vis_omega_color.g = 1.0;
+      m_vis_omega_color.b = 1.0;
+      
+      m_vis_psidc_color.a = 1.0;
+      m_vis_psidc_color.r = 1.0;
+      m_vis_psidc_color.g = 0.2;
+      m_vis_psidc_color.b = 0.2;
+
+      m_vis_psidm_color.a = 0.5;
+      m_vis_psidm_color.r = 1.0;
+      m_vis_psidm_color.g = 0.2;
+      m_vis_psidm_color.b = 0.2;
+
+      m_vis_psi_bearing_r_color.a = 1.0;
+      m_vis_psi_bearing_r_color.r = 0.5;
+      m_vis_psi_bearing_r_color.g = 1.0;
+      m_vis_psi_bearing_r_color.b = 0.2;
+      
+      m_vis_psi_bearing_o_color.a = 0.5;
+      m_vis_psi_bearing_o_color.r = 0.2;
+      m_vis_psi_bearing_o_color.g = 1.0;
+      m_vis_psi_bearing_o_color.b = 0.2;
+
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
       m_main_thread.detach();
@@ -252,6 +280,7 @@ namespace difec_ron
 
       // some debugging shit
       visualization_msgs::MarkerArray p_cs;
+      visualization_msgs::MarkerArray psi_cs;
       const bool visualize = m_pub_vis_p_cs.getNumSubscribers() > 0;
 
       // prepare the necessary constants
@@ -318,6 +347,7 @@ namespace difec_ron
 
         if (visualize)
         {
+          // Positional components
           visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
           p_c1d_vis.id = 4*meas.detected.id;
           p_c1d_vis.ns = "p^c1 - p^d";
@@ -338,6 +368,29 @@ namespace difec_ron
           p_cs.markers.push_back(p_md_vis);
           p_cs.markers.push_back(p_c2dR_vis);
           p_cs.markers.push_back(p_mdR_vis);
+
+          // Rotational components
+          visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
+          psi_cd_vis.id = 4*meas.detected.id + 4;
+          psi_cd_vis.ns = "2*(psi^c - psi^d)";
+
+          visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
+          psi_cm_vis.id = 4*meas.detected.id + 5;
+          psi_cm_vis.ns = "2*(psi^m - psi^d)";
+
+          visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
+          psi_bearing_restrained_vis.id = 4*meas.detected.id + 6;
+          psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
+
+          visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
+          psi_bearing_orig_vis.id = 4*meas.detected.id + 7;
+          psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
+
+          psi_cs.markers.push_back(psi_cd_vis);
+          psi_cs.markers.push_back(psi_cm_vis);
+          psi_cs.markers.push_back(psi_bearing_restrained_vis);
+          psi_cs.markers.push_back(psi_bearing_orig_vis);
+
         }
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
         /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
@@ -352,9 +405,11 @@ namespace difec_ron
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
 
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
-      m_pub_vis_omega.publish(heading_vis(omega, now));
-      if (visualize)
+      m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
+      if (visualize){
         m_pub_vis_p_cs.publish(p_cs);
+        m_pub_vis_psi_cs.publish(psi_cs);
+      }
 
       if (m_drmgr_ptr->config.control__enabled)
       {
@@ -459,7 +514,7 @@ namespace difec_ron
     //}
 
     /* heading_vis() method //{ */
-    visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time) const
+    visualization_msgs::Marker heading_vis(const double hdg, const ros::Time& time, const std_msgs::ColorRGBA& color) const
     {
       visualization_msgs::Marker mkr;
       mkr.header.frame_id = m_uav_frame_id;
@@ -468,9 +523,7 @@ namespace difec_ron
       mkr.pose.orientation.w = 1.0;
       mkr.scale.x = 0.05; // shaft diameter
       mkr.scale.y = 0.15; // head diameter
-      mkr.color.g = 1.0;
-      mkr.color.b = 1.0;
-      mkr.color.a = 1.0;
+      mkr.color = color;
       geometry_msgs::Point pnt;
       mkr.points.push_back(pnt);
       pnt.z = hdg;
@@ -643,6 +696,12 @@ namespace difec_ron
     std_msgs::ColorRGBA m_vis_p2_color;
     std_msgs::ColorRGBA m_vis_pmdR_color;
 
+    std_msgs::ColorRGBA m_vis_omega_color;
+    std_msgs::ColorRGBA  m_vis_psidc_color;
+    std_msgs::ColorRGBA  m_vis_psidm_color;
+    std_msgs::ColorRGBA  m_vis_psi_bearing_r_color;
+    std_msgs::ColorRGBA  m_vis_psi_bearing_o_color;
+
   private:
     // --------------------------------------------------------------
     // |                ROS-related member variables                |
@@ -657,6 +716,7 @@ namespace difec_ron
 
     ros::Publisher m_pub_vis_formation;
     ros::Publisher m_pub_vis_p_cs;
+    ros::Publisher m_pub_vis_psi_cs;
     ros::Publisher m_pub_vis_u;
     ros::Publisher m_pub_vis_omega;
     ros::Publisher m_pub_vel_ref;
