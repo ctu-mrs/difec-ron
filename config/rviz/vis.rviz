@@ -461,8 +461,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_formation
       Name: formation
       Namespaces:
-        uav1: true
-        uav2: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
