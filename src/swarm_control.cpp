@@ -271,7 +271,8 @@ namespace difec_ron
         const mat3_t C = mrs_lib::geometry::rotateCovariance(cov_orig.block<3, 3>(0, 0), tf_rot);;
         // standard deviation of the heading (hopefully...)
         // TODO: check that yaw really corresponds to heading here and that it doesn't have to be transformed
-        const double sig = cov_orig(6, 6);
+        // TODO: It should be transformed, but the difference for sigma will typically not be that bad
+        const double sig = sqrt(cov_orig(6, 6)); //square root, since covariance has squared elements
 
         // add the measurement to the list
         const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
@@ -310,6 +311,7 @@ namespace difec_ron
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
         const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::probit(l) + m.p;
         const double psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
+        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
 
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
