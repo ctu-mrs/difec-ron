@@ -51,7 +51,7 @@ windows:
   - rviz:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; rosparam set use_sim_time true; roslaunch uvdar_core multimodal_hypothesis_rviz.launch
+        - export UAV_NAME=uav1; waitForControl; rosparam set use_sim_time true; roslaunch difec_ron rviz.launch
   - uv_observer:
       layout: even-vertical
       panes:
