@@ -272,7 +272,10 @@ namespace difec_ron
         // standard deviation of the heading (hopefully...)
         // TODO: check that yaw really corresponds to heading here and that it doesn't have to be transformed
         // TODO: It should be transformed, but the difference for sigma will typically not be that bad
-        const double sig = sqrt(cov_orig(6, 6)); //square root, since covariance has squared elements
+        const double sig = sqrt(cov_orig(5, 5)); //square root, since covariance has squared elements
+
+        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << pose.id << " has C: " << std::endl << cov_orig);
+        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << pose.id << " has heading sigma: " << sig << " rad");
 
         // add the measurement to the list
         const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
