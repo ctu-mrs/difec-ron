@@ -15,3 +15,7 @@ formation:
     uvdar_id: 1
     position: [2.0, 2.0, 0.0]
     heading: 0.0
+  uav3:
+    uvdar_id: 2
+    position: [2.0, -2.0, -2.0] #we can move it on the ground
+    heading: 1.57
