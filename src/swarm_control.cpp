@@ -711,7 +711,7 @@ namespace difec_ron
     void dynparam_callback(difec_ron::FormationControlParamsConfig& new_config, uint32_t level)
     {
       // signals that the formation filename was changed
-      if (level == 8)
+      if (level == 8 && new_config.formation__update)
       {
         std::scoped_lock lck(m_mutex);
         const auto formation_opt = load_formation(m_uav_name, new_config.formation__filename);
