@@ -13,6 +13,8 @@
 
 #include <boost/circular_buffer.hpp>
 
+#include <yaml-cpp/yaml.h>
+
 #include <nodelet/nodelet.h>
 
 #include <visualization_msgs/Marker.h>
@@ -76,7 +78,7 @@ namespace difec_ron
 
       /* Load parameters from ROS //{*/
       NODELET_INFO("Loading default dynamic parameters:");
-      m_drmgr_ptr = std::make_unique<drmgr_t>(nh, m_node_name);
+      m_drmgr_ptr = std::make_unique<drmgr_t>(nh, true, m_node_name, boost::bind(&SwarmControl::dynparam_callback, this, _1, _2));
 
       // CHECK LOADING STATUS
       if (!m_drmgr_ptr->loaded_successfully())
@@ -89,13 +91,14 @@ namespace difec_ron
       mrs_lib::ParamLoader pl(nh, m_node_name);
       // LOAD STATIC PARAMETERS
       NODELET_INFO("Loading static parameters:");
+      pl.loadParam("uav_name", m_uav_name);
       pl.loadParam("world_frame_id", m_world_frame_id);
       pl.loadParam("uav_frame_id", m_uav_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
 
       // load the formation
-      const auto formation_opt = load_formation(pl);
+      const auto formation_opt = load_formation(m_uav_name, m_drmgr_ptr->config.formation__filename);
 
       // CHECK LOADING STATUS
       if (!pl.loadedSuccessfully() || !formation_opt.has_value())
@@ -133,32 +136,35 @@ namespace difec_ron
 
       m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
 
+      /* visualization colors //{ */
+      
+      // linear velocity colors
       m_vis_u_color.a = 1.0;
       m_vis_u_color.r = 1.0;
       m_vis_u_color.b = 1.0;
-
+      
       m_vis_p1_color.a = 1.0;
       m_vis_p1_color.r = 0.5;
       m_vis_p1_color.g = 0.5;
       m_vis_p1_color.b = 1.0;
-
+      
       m_vis_pmd_color.a = 0.5;
       m_vis_pmd_color.r = 0.5;
       m_vis_pmd_color.g = 0.5;
       m_vis_pmd_color.b = 1.0;
-
+      
       m_vis_p2_color.a = 1.0;
       m_vis_p2_color.r = 0.5;
       m_vis_p2_color.g = 1.0;
       m_vis_p2_color.b = 0.5;
-
+      
       m_vis_pmdR_color.a = 0.5;
       m_vis_pmdR_color.r = 0.5;
       m_vis_pmdR_color.g = 1.0;
       m_vis_pmdR_color.b = 0.5;
-
       
-
+      
+      // rotation speed colors
       m_vis_omega_color.a = 1.0;
       m_vis_omega_color.g = 1.0;
       m_vis_omega_color.b = 1.0;
@@ -167,12 +173,12 @@ namespace difec_ron
       m_vis_psidc_color.r = 1.0;
       m_vis_psidc_color.g = 0.2;
       m_vis_psidc_color.b = 0.2;
-
+      
       m_vis_psidm_color.a = 0.5;
       m_vis_psidm_color.r = 1.0;
       m_vis_psidm_color.g = 0.2;
       m_vis_psidm_color.b = 0.2;
-
+      
       m_vis_psi_bearing_r_color.a = 1.0;
       m_vis_psi_bearing_r_color.r = 0.5;
       m_vis_psi_bearing_r_color.g = 1.0;
@@ -182,7 +188,8 @@ namespace difec_ron
       m_vis_psi_bearing_o_color.r = 0.2;
       m_vis_psi_bearing_o_color.g = 1.0;
       m_vis_psi_bearing_o_color.b = 0.2;
-
+      
+      //}
 
       m_main_thread = std::thread(&SwarmControl::main_loop, this);
       m_main_thread.detach();
@@ -211,6 +218,8 @@ namespace difec_ron
     /* process_msg() method //{ */
     void process_msg(const mrs_msgs::PoseWithCovarianceArrayStamped::ConstPtr msg)
     {
+      std::scoped_lock lck(m_mutex);
+
       if (msg->poses.empty())
       {
         ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: No neighbors detected out of " << m_formation.size()-1 << " total neighbors. Doing nothing.");
@@ -342,6 +351,7 @@ namespace difec_ron
         const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
+        // | ------------- accumulate the calculated stuff ------------ |
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
         u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), p_md);
         u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), p_mdR);
@@ -350,57 +360,57 @@ namespace difec_ron
         omega_accum_1 += clamp(tmp1, 0.0, tmp2);
         omega_accum_2 += clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
 
+        /* visualization stuff //{ */
+        
         if (visualize)
         {
           // Positional components
           visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
           p_c1d_vis.id = 4*meas.detected.id;
           p_c1d_vis.ns = "p^c1 - p^d";
-
+        
           visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
           p_md_vis.id = 4*meas.detected.id + 1;
           p_md_vis.ns = "p^m - p^d";
-
+        
           visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
           p_c2dR_vis.id = 4*meas.detected.id + 2;
           p_c2dR_vis.ns = "p^c2 - p^dR";
-
+        
           visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdR, now, m_vis_pmdR_color);
           p_mdR_vis.id = 4*meas.detected.id + 3;
           p_mdR_vis.ns = "p^m - p^dR";
-
+        
           p_cs.markers.push_back(p_c1d_vis);
           p_cs.markers.push_back(p_md_vis);
           p_cs.markers.push_back(p_c2dR_vis);
           p_cs.markers.push_back(p_mdR_vis);
-
+        
           // Rotational components
           visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
           psi_cd_vis.id = 4*meas.detected.id + 4;
           psi_cd_vis.ns = "2*(psi^c - psi^d)";
-
+        
           visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
           psi_cm_vis.id = 4*meas.detected.id + 5;
           psi_cm_vis.ns = "2*(psi^m - psi^d)";
-
+        
           visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
           psi_bearing_restrained_vis.id = 4*meas.detected.id + 6;
           psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
-
+        
           visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
           psi_bearing_orig_vis.id = 4*meas.detected.id + 7;
           psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
-
+        
           psi_cs.markers.push_back(psi_cd_vis);
           psi_cs.markers.push_back(psi_cm_vis);
           psi_cs.markers.push_back(psi_bearing_restrained_vis);
           psi_cs.markers.push_back(psi_bearing_orig_vis);
-
+        
         }
-        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c1: " << p_c1.transpose()); */
-        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c2: " << p_c2.transpose()); */
-        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: p_c3: " << p_c3.transpose()); */
-        /* ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: psi_c: " << psi_c); */
+        
+        //}
       }
 
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
@@ -411,7 +421,8 @@ namespace difec_ron
 
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
-      if (visualize){
+      if (visualize)
+      {
         m_pub_vis_p_cs.publish(p_cs);
         m_pub_vis_psi_cs.publish(psi_cs);
       }
@@ -602,53 +613,61 @@ namespace difec_ron
     //}
 
     /* load_formation() method //{ */
-    std::optional<std::vector<agent_t>> load_formation(mrs_lib::ParamLoader& pl)
+    std::optional<std::vector<agent_t>> load_formation(const std::string& this_uav_name, const std::string& filename)
     {
-      const auto this_uav_name = pl.loadParam2<std::string>("uav_name");
-      const auto xml_formation = pl.loadParam2<XmlRpc::XmlRpcValue>("formation");
-    
+      ROS_INFO_STREAM("[SwarmControl]: Parsing formation from file '" << filename << "'."); 
+      std::ifstream fs(filename);
+      if (!fs.is_open())
+      {
+        ROS_ERROR_STREAM("[SwarmControl]: Couldn't open the formation file!");
+        return std::nullopt;
+      }
+      // ignore the first line that only contains the csv columns description
+      std::string line;
+      std::getline(fs, line);
+
       bool all_ok = true;
       std::vector<agent_t> formation;
-      for (const auto& uav : xml_formation)
+      while (std::getline(fs, line))
       {
-        const std::string uav_name = uav.first;
-        const auto uav_data = uav.second;
-        ROS_INFO_STREAM("[SwarmControl]: Loading formation data for UAV " << uav_name);
-    
-        std::optional<uint64_t> id = std::nullopt;
-        std::optional<std::array<double, 3>> coords = std::nullopt;
-        std::optional<double> heading = std::nullopt;
-    
-        for (const auto& el : uav_data)
+        // Ignore empty lines
+        if (line.empty())
+          continue;
+
+        // Tokenize the line
+        boost::trim(line);
+        /* const std::vector<std::string> st = split(line, ' '); */
+        std::vector<std::string> st;
+        boost::split(st, line, boost::is_any_of(",;"), boost::token_compress_on);
+
+        if (st.size() < 5)
         {
-          if (el.first == "uvdar_id" && el.second.getType() == XmlRpc::XmlRpcValue::TypeInt)
-            id = int(el.second);
-          else if (el.first == "heading" && el.second.getType() == XmlRpc::XmlRpcValue::TypeDouble)
-            heading = double(el.second);
-          else if (el.first == "position" && el.second.getType() == XmlRpc::XmlRpcValue::TypeArray && el.second.size() == 3)
-          {
-            coords = {0,0,0};
-            for (int it = 0; it < el.second.size(); it++)
-              coords.value()[it] = el.second[it];
-          }
-          else
-          {
-            const auto type = to_string(el.second.getType());
-            ROS_WARN_STREAM("[SwarmControl]: Unexpected or invalid XML member encountered: " << el.first << " (" << type << "), ignoring.");
-            all_ok = false;
-          }
+          ROS_WARN_STREAM("[SwarmControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
+          continue;
         }
-    
-        if (!id.has_value() || !coords.has_value() || !heading.has_value())
+
+        size_t it = 0;
+        const std::string uav_name = st.at(it++);
+        ROS_INFO_STREAM("[SwarmControl]: Loading formation data for UAV " << uav_name);
+        try
         {
-          ROS_WARN_STREAM("[SwarmControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\n\tuvdar_id (int)\n\theading (double)\n\tposition (double[3])");
+          // try to parse the expected values
+          const uint64_t id = std::stoul(st.at(it++));
+          const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
+          const double heading = std::stod(st.at(it++));
+
+          // create the agent and add it to the formation
+          const vec3_t position(coords[0], coords[1], coords[2]);
+          const pose_t agent_pose = {position, heading};
+          const agent_t agent = {id, uav_name, agent_pose};
+          formation.emplace_back(agent);
+        }
+        catch (const std::exception& e)
+        {
+          ROS_WARN_STREAM("[SwarmControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
           all_ok = false;
           continue;
         }
-        const vec3_t position(coords.value()[0], coords.value()[1], coords.value()[2]);
-        const pose_t agent_pose = {position, heading.value()};
-        const agent_t agent = {id.value(), uav_name, agent_pose};
-        formation.emplace_back(agent);
       }
 
       // find this UAV in the formation specification
@@ -659,7 +678,6 @@ namespace difec_ron
         return std::nullopt;
       }
       const agent_t& this_agent = *this_agent_it;
-      m_uav_name = this_uav_name;
       m_uvdar_id = this_agent.id;
       const pose_t this_pose = this_agent.desired_relative_pose;
 
@@ -689,10 +707,27 @@ namespace difec_ron
     }
     //}
 
+    /* dynparam_callback() method //{ */
+    void dynparam_callback(difec_ron::FormationControlParamsConfig& new_config, uint32_t level)
+    {
+      // signals that the formation filename was changed
+      if (level == 8)
+      {
+        std::scoped_lock lck(m_mutex);
+        const auto formation_opt = load_formation(m_uav_name, new_config.formation__filename);
+        // CHECK LOADING STATUS
+        if (!formation_opt.has_value())
+          NODELET_ERROR("Failed to load the new formation! Ignoring.");
+        else
+          m_formation = formation_opt.value();
+      }
+    }
+    //}
+
   private:
 
+    std::mutex m_mutex;
     std::thread m_main_thread;
-    std::string m_uav_name;
     uint64_t m_uvdar_id;
     boost::circular_buffer<double> m_period_buffer;
     std_msgs::ColorRGBA m_vis_u_color;
@@ -735,6 +770,7 @@ namespace difec_ron
 
     /* Parameters, loaded from ROS //{ */
 
+    std::string m_uav_name;
     std::string m_world_frame_id;
     std::string m_uav_frame_id;
     ros::Duration m_transform_lookup_timeout;

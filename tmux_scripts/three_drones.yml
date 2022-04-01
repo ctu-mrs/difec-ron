@@ -10,7 +10,7 @@ windows:
   - gazebo:
       layout: even-vertical
       panes:
-        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=true
+        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=false
   - status:
       layout: even-vertical
       panes:
@@ -64,9 +64,9 @@ windows:
   - uv_observer:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
-        - export UAV_NAME=uav2; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
-        - export UAV_NAME=uav3; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch
+        - export UAV_NAME=uav1; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav2; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav3; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
   - kalman_filter:
       layout: even-vertical
       panes:
@@ -86,7 +86,11 @@ windows:
   - tf_connector:
       layout: even-vertical
       panes:
-        - waitForSimulation; waitForRos; roslaunch mrs_uav_odometry tf_connector.launch
+        - waitForSimulation; waitForRos; roslaunch difec_ron tf_connector.launch
+  - multireconfigure:
+      layout: even-vertical
+      panes:
+        - waitForSimulation; waitForControl; sleep 20; roslaunch difec_ron multireconfigure.launch
   - goto:
       layout: even-vertical
       panes:
