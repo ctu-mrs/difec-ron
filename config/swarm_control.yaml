@@ -5,3 +5,6 @@ control:
   enabled: false
   admissible_overshoot_probability: 0.05
   proportional_constant: 0.6
+
+formation:
+  update: false
