@@ -41,14 +41,14 @@ namespace difec_ron
       uint64_t id;
       vec3_t p; // relative position measurement
       mat3_t C; // position uncertainty covariance matrix
-      double psi; // relative heading measurement
+      rads_t psi; // relative heading measurement
       double sig; // heading uncertainty standard deviation
     };
     
     struct pose_t
     {
       vec3_t p; // position
-      double psi; // heading
+      rads_t psi; // heading
     };
     
     struct agent_t
@@ -242,7 +242,7 @@ namespace difec_ron
       const auto tf_ros = tf_opt.value();
       const Eigen::Isometry3d tf = tf2::transformToEigen(tf_ros);
       const mat3_t tf_rot = tf.rotation();
-      const double tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
+      const rads_t tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
 
       // fill the vector of detected agents and their corresponding desired poses in the formation
       std::vector<agent_meas_t> agent_meass;
@@ -266,7 +266,7 @@ namespace difec_ron
         // orientation in the original frame of the message
         const quat_t ori_orig = mrs_lib::geometry::toEigen(pose.pose.orientation);
         // heading in the original frame of the message
-        const double hdg_orig = mrs_lib::geometry::headingFromRot(ori_orig);
+        const rads_t hdg_orig = mrs_lib::geometry::headingFromRot(ori_orig);
         // covariance matrix of the pose in the original frame of the message
         const mat6_t cov_orig = mrs_lib::geometry::toEigenMatrix(pose.covariance);
 
@@ -274,7 +274,7 @@ namespace difec_ron
         const vec3_t p = tf*pos_orig;
         // heading measurement
         // TODO: make sure this makes sense
-        const double psi = hdg_orig + tf_hdg;
+        const rads_t psi = hdg_orig + tf_hdg;
 
         // covariance matrix of the position
         const mat3_t C = mrs_lib::geometry::rotateCovariance(cov_orig.block<3, 3>(0, 0), tf_rot);;
@@ -312,9 +312,9 @@ namespace difec_ron
         // shorthand for the desired relative pose
         const auto& d = meas.formation.desired_relative_pose;
         // heading difference between measured and desired position
-        const double psi_md = m.psi - d.psi;
+        const rads_t psi_md = m.psi - d.psi;
         // rotation matrix corresponding to the heading difference
-        const mat3_t R_dpsi( anax_t(psi_md, vec3_t::UnitZ()) );
+        const mat3_t R_dpsi( anax_t(psi_md.value(), vec3_t::UnitZ()) );
         // position difference between measured and desired position
         const vec3_t p_md = m.p - d.p;
 
@@ -322,7 +322,7 @@ namespace difec_ron
         // TODO: proper inverse calculation and checking
         const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
         const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::probit(l) + m.p;
-        const double psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
+        const rads_t psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
         ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
 
         // | --------------------- calculate p_c2 --------------------- |
@@ -343,12 +343,12 @@ namespace difec_ron
         const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::probit(l) + m.p;
 
         // | --------------------- calculate p_c3 --------------------- |
-        const double beta = -std::atan2(m.p.y(), m.p.x());
-        const mat3_t R_beta( anax_t(beta, vec3_t::UnitZ()) );
+        const rads_t beta = -std::atan2(m.p.y(), m.p.x());
+        const mat3_t R_beta( anax_t(beta.value(), vec3_t::UnitZ()) );
         const mat3_t C_r = R_beta*m.C*R_beta.transpose();
         const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const double tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::probit(l);
-        const mat3_t R_tot( anax_t(tot_angle, vec3_t::UnitZ()) );
+        const rads_t tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::probit(l);
+        const mat3_t R_tot( anax_t(tot_angle.value(), vec3_t::UnitZ()) );
         const vec3_t p_c3 = R_tot*m.p;
 
         // | ------------- accumulate the calculated stuff ------------ |
@@ -577,7 +577,7 @@ namespace difec_ron
         pnt.z = des_pos.z();
         mkr.points.push_back(pnt);
 
-        const vec3_t des_pos_ori = des_pos + anax_t(agent.desired_relative_pose.psi, vec3_t::UnitZ())*vec3_t::UnitX();
+        const vec3_t des_pos_ori = des_pos + anax_t(agent.desired_relative_pose.psi.value(), vec3_t::UnitZ())*vec3_t::UnitX();
         pnt.x = des_pos_ori.x();
         pnt.y = des_pos_ori.y();
         pnt.z = des_pos_ori.z();
@@ -654,7 +654,7 @@ namespace difec_ron
           // try to parse the expected values
           const uint64_t id = std::stoul(st.at(it++));
           const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
-          const double heading = std::stod(st.at(it++));
+          const rads_t heading = std::stod(st.at(it++));
 
           // create the agent and add it to the formation
           const vec3_t position(coords[0], coords[1], coords[2]);
@@ -682,7 +682,7 @@ namespace difec_ron
       const pose_t this_pose = this_agent.desired_relative_pose;
 
       // now recalculate the agent poses to be relative to the current UAV
-      const mat3_t rot( anax_t(-this_pose.psi, vec3_t::UnitZ()) );
+      const mat3_t rot( anax_t(-this_pose.psi.value(), vec3_t::UnitZ()) );
       for (auto& agent : formation)
       {
         agent.desired_relative_pose.p = rot*(agent.desired_relative_pose.p - this_pose.p);

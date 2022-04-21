@@ -16,6 +16,7 @@
 #include <mrs_lib/transformer.h>
 #include <mrs_lib/geometry/misc.h>
 #include <mrs_lib/geometry/conversions.h>
+#include <mrs_lib/geometry/cyclic.h>
 #include <mrs_lib/vector_converter.h>
 #include <mrs_lib/utils.h>
 #include <mrs_lib/math.h>
@@ -30,6 +31,7 @@ namespace difec_ron
   using anax_t = Eigen::AngleAxisd;
   using mat3_t = Eigen::Matrix3d;
   using mat6_t = Eigen::Matrix<double, 6, 6>;
+  using rads_t = mrs_lib::geometry::sradians;
 }
 
 #endif //  MAIN_H
