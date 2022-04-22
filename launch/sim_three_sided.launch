@@ -155,7 +155,8 @@
       <param name="debug"		type="bool" value="false"/> 
       <param name="visual_debug"		type="bool" value="$(arg visual_debug)"/> 
       <param name="gui"             type="bool" value="$(arg gui)"/>
-      <param name="publish_visualization"             type="bool" value="false"/>
+      <!-- <param name="publish_visualization"             type="bool" value="false"/> -->
+      <param name="publish_visualization"             type="bool" value="true"/>
       <param name="use_camera_for_visualization"         type="bool" value="false"/>
       <param name="visualization_rate"         type="double" value="2.0"/>
 

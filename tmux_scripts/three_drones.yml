@@ -10,7 +10,7 @@ windows:
   - gazebo:
       layout: even-vertical
       panes:
-        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=false
+        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=true
   - status:
       layout: even-vertical
       panes:
@@ -57,16 +57,16 @@ windows:
           waitForControl;
           rosservice call /$UAV_NAME/mavros/cmd/arming 1;
           rosservice call /$UAV_NAME/mavros/set_mode 0 offboard'
-  # - rviz:
-  #     layout: even-vertical
-  #     panes:
-  #       - export UAV_NAME=uav1; waitForControl; rosparam set use_sim_time true; roslaunch difec_ron rviz.launch
+  - rviz:
+      layout: even-vertical
+      panes:
+        - export UAV_NAME=uav1; waitForControl; rosparam set use_sim_time true; roslaunch difec_ron rviz.launch
   - uv_observer:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=true
-        - export UAV_NAME=uav2; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=true
-        - export UAV_NAME=uav3; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=true
+        - export UAV_NAME=uav1; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav2; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav3; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
   - kalman_filter:
       layout: even-vertical
       panes:
@@ -82,7 +82,7 @@ windows:
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; sleep 15; gz physics -u 50
+        - waitForSimulation; sleep 35; gz physics -u 50
   - tf_connector:
       layout: even-vertical
       panes:
