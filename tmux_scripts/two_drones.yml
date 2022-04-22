@@ -10,7 +10,7 @@ windows:
   - gazebo:
       layout: even-vertical
       panes:
-        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=false
+        - waitForRos; roslaunch uvdar_core uvdar_gazebo.launch gui:=true
   - status:
       layout: even-vertical
       panes:
@@ -78,7 +78,7 @@ windows:
   - multireconfigure:
       layout: even-vertical
       panes:
-        - waitForSimulation; waitForControl; sleep 20; roslaunch difec_ron multireconfigure.launch
+        - export UAV_NAME=uav2; waitForSimulation; waitForControl; sleep 20; roslaunch difec_ron multireconfigure.launch
   - goto:
       layout: even-vertical
       panes:
