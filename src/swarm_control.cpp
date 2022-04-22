@@ -720,6 +720,8 @@ namespace difec_ron
           NODELET_ERROR("Failed to load the new formation! Ignoring.");
         else
           m_formation = formation_opt.value();
+
+        m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
       }
     }
     //}
