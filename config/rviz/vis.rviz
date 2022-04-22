@@ -533,6 +533,14 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_formation
       Name: formation (uav2)
       Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /uav3/swarm_control/visualization_formation
+      Name: formation (uav3)
+      Namespaces:
         uav1: true
         uav2: true
         uav3: true
@@ -543,7 +551,10 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_p_c12
       Name: p_c1/2
       Namespaces:
-        {}
+        p^c1 - p^d: true
+        p^c2 - p^dR: true
+        p^m - p^d: true
+        p^m - p^dR: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -551,7 +562,10 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_psi_comp
       Name: psi_c1/2
       Namespaces:
-        {}
+        2*(psi^c - psi^d): true
+        2*(psi^m - psi^d): true
+        p^d'*S'*p^c3: true
+        p^d'*S'*p^m: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -559,7 +573,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_u
       Name: u_i
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -567,7 +581,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_omega
       Name: omega_i
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -575,7 +589,10 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_p_c12
       Name: p_c1/2 (uav2)
       Namespaces:
-        {}
+        p^c1 - p^d: true
+        p^c2 - p^dR: true
+        p^m - p^d: true
+        p^m - p^dR: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -583,7 +600,10 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_psi_comp
       Name: psi_c1/2 (uav2)
       Namespaces:
-        {}
+        2*(psi^c - psi^d): true
+        2*(psi^m - psi^d): true
+        p^d'*S'*p^c3: true
+        p^d'*S'*p^m: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -591,7 +611,7 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_omega
       Name: omega_i (uav2)
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -599,14 +619,52 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_u
       Name: u_i (uav2)
       Namespaces:
-        {}
+        "": true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /uav3/swarm_control/visualization_p_c12
+      Name: p_c1/2 (uav3)
+      Namespaces:
+        p^c1 - p^d: true
+        p^c2 - p^dR: true
+        p^m - p^d: true
+        p^m - p^dR: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /uav3/swarm_control/visualization_psi_comp
+      Name: psi_c1/2 (uav3)
+      Namespaces:
+        2*(psi^c - psi^d): true
+        2*(psi^m - psi^d): true
+        p^d'*S'*p^c3: true
+        p^d'*S'*p^m: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /uav3/swarm_control/visualization_omega
+      Name: omega_i (uav3)
+      Namespaces:
+        "": true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /uav3/swarm_control/visualization_u
+      Name: u_i (uav3)
+      Namespaces:
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: uav1/stable_origin
+    Fixed Frame: uav1/fcu
     Frame Rate: 30
   Name: root
   Tools:
@@ -630,7 +688,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 12.606705665588379
+      Distance: 14.636772155761719
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -646,9 +704,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9297974109649658
+      Pitch: 1.5347965955734253
       Target Frame: uav1/fcu
-      Yaw: 3.1600124835968018
+      Yaw: 3.1400146484375
     Saved: ~
 Window Geometry:
   Displays:

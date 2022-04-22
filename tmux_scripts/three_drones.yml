@@ -90,7 +90,7 @@ windows:
   - multireconfigure:
       layout: even-vertical
       panes:
-        - waitForSimulation; waitForControl; sleep 20; roslaunch difec_ron multireconfigure.launch
+        - export UAV_NAME=uav3; waitForSimulation; waitForControl; sleep 20; roslaunch difec_ron multireconfigure.launch
   - goto:
       layout: even-vertical
       panes:
