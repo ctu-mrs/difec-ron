@@ -96,6 +96,7 @@ namespace difec_ron
       pl.loadParam("uav_frame_id", m_uav_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
+      const double repeat_rate = pl.loadParam2<double>("control/repeat_rate");
 
       // load the formation
       const auto formation_opt = load_formation(m_uav_name, m_drmgr_ptr->config.formation__filename);
@@ -133,6 +134,8 @@ namespace difec_ron
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
       //}
+
+      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0/repeat_rate), &SwarmControl::velocity_command_loop, this);
 
       m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
 
@@ -437,6 +440,9 @@ namespace difec_ron
         vel_out.reference.velocity.z = u.z();
         vel_out.reference.heading_rate = omega;
         vel_out.reference.use_heading_rate = true;
+        std::scoped_lock lck(m_last_vel_out_mtx);
+        m_last_vel_out = vel_out;
+        m_last_vel_out_set = true;
         m_pub_vel_ref.publish(vel_out);
       }
       else
@@ -444,6 +450,17 @@ namespace difec_ron
       prev_action_time = now;
     }
     //}
+
+    void velocity_command_loop([[maybe_unused]] const ros::TimerEvent& evt)
+    {
+      std::scoped_lock lck(m_last_vel_out_mtx);
+      if (m_drmgr_ptr->config.control__enabled && m_drmgr_ptr->config.control__repeat_commands && m_last_vel_out_set)
+      {
+        mrs_msgs::VelocityReferenceStamped vel_out = m_last_vel_out;
+        vel_out.header.stamp = ros::Time::now();
+        m_pub_vel_ref.publish(vel_out);
+      }
+    }
 
     // --------------------------------------------------------------
     // |                  Mathematical functions                    |
@@ -744,6 +761,10 @@ namespace difec_ron
     std_msgs::ColorRGBA  m_vis_psi_bearing_r_color;
     std_msgs::ColorRGBA  m_vis_psi_bearing_o_color;
 
+    std::mutex m_last_vel_out_mtx;
+    bool m_last_vel_out_set = false;
+    mrs_msgs::VelocityReferenceStamped m_last_vel_out;
+
   private:
     // --------------------------------------------------------------
     // |                ROS-related member variables                |
@@ -762,6 +783,8 @@ namespace difec_ron
     ros::Publisher m_pub_vis_u;
     ros::Publisher m_pub_vis_omega;
     ros::Publisher m_pub_vel_ref;
+
+    ros::Timer m_tim_vel_cmd;
 
     //}
 

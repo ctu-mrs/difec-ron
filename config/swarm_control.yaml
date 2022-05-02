@@ -3,6 +3,8 @@ throttle_period: 0.1 # seconds
 
 control:
   enabled: false
+  repeat_commands: false
+  repeat_rate: 10 # Hz
   admissible_overshoot_probability: 0.05
   proportional_constant: 0.6
 
