@@ -55,8 +55,8 @@ windows:
   - uv_observer:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
-        - export UAV_NAME=uav2; waitForControl; sleep 4; gz world --pause=0; sleep 6; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav1; waitForControl; sleep 4; roslaunch difec_ron sim_three_sided.launch gui:=false
+        - export UAV_NAME=uav2; waitForControl; sleep 4; roslaunch difec_ron sim_three_sided.launch gui:=false
   - kalman_filter:
       layout: even-vertical
       panes:
@@ -70,7 +70,7 @@ windows:
   - slow_down:
       layout: even-vertical
       panes:
-        - waitForSimulation; sleep 20; gz physics -u 50
+        - waitForSimulation; sleep 20; gz physics -u 150
   - tf_connector:
       layout: even-vertical
       panes:
@@ -83,3 +83,12 @@ windows:
       layout: even-vertical
       panes:
         - 'history -s rosservice call /uav3/control_manager/goto_fcu \"goal: \[0.0, 0.0, 0.0, 0.7\]\"'
+  - layout_manger:
+      layout: even-vertical
+      panes:
+        - i3-msg workspace number 8; ~/git/linux-setup/submodules/i3-layout-manager/layout_manager.sh "UVDAR_FORMATION_SIMULATION_SINGLE_MONITOR"
+  - formation_management:
+      layout: even-vertical
+      panes:
+        - sleep 2; urxvt -e vim $(rospack find difec_ron)/config/formation.csv
+        - export UAV_NAME=uav2; waitForControl; sleep 25; rosrun rqt_reconfigure rqt_reconfigure swarm_multireconfigure/multireconfigure

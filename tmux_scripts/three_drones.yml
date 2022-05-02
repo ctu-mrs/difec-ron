@@ -29,7 +29,7 @@ windows:
       panes:
         - export UAV_NAME=uav2; waitForOdometry; roslaunch uvdar_core led_manager.launch
         - 'history -s rosservice call /uav2/uvdar_led_manager_node/quick_start 5'
-        - 'history -s rosservice call /uav2/uvdar_led_manager_node/set_frequency 59'
+        - 'history -s rosservice call /uav2/uvdar_led_manager_node/set_frequency 60'
   - control:
       layout: even-vertical
       panes:
