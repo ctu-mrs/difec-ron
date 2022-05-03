@@ -37,13 +37,13 @@ pre_input="mkdir -p $MAIN_DIR/$PROJECT_NAME"
 input=(
   'Rosbag' 'waitForOffboard; rosrun uvdar_core rosbag_record.sh
 '
-  'Nimbro' 'waitForRos; roslaunch mrs_uav_general nimbro.launch
+  'Nimbro' 'waitForRos; rosrun mrs_uav_general run_nimbro.py custom_configs/nimbro.yaml custom_configs/uav_names.yaml
 '
   'Sensors' 'waitForRos; roslaunch mrs_uav_general sensors.launch
 '
   'Status' 'waitForRos; roslaunch mrs_uav_status status.launch
 '
-  'Control' 'waitForRos; roslaunch mrs_uav_general core.launch
+  'Control' 'waitForRos; roslaunch mrs_uav_general core.launch config_mpc_tracker:=./custom_configs/mpc_tracker.yaml config_constraint_manager:=./custom_configs/constraint_manager.yaml
 '
   'AutoStart' 'waitForRos; roslaunch mrs_uav_general automatic_start.launch
 '

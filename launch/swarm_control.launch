@@ -28,8 +28,8 @@
   <arg unless="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/filteredPoses"/>
   <arg     if="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/mergedMeasurements"/>
 
-  <arg name="config_file" default="$(find difec_ron)/config/swarm_control.yaml">
-  <arg name="formation_file" default="$(find difec_ron)/config/formation.csv">
+  <arg name="config_file" default="$(find difec_ron)/config/swarm_control.yaml"/>
+  <arg name="formation_file" default="$(find difec_ron)/config/formation.csv"/>
 
   <group ns="$(arg uav_name)">
 
