@@ -28,12 +28,15 @@
   <arg unless="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/filteredPoses"/>
   <arg     if="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/mergedMeasurements"/>
 
+  <arg name="config_file" default="$(find difec_ron)/config/swarm_control.yaml">
+  <arg name="formation_file" default="$(find difec_ron)/config/formation.csv">
+
   <group ns="$(arg uav_name)">
 
     <node pkg="nodelet" type="nodelet" name="swarm_control" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
 
-      <rosparam file="$(find difec_ron)/config/swarm_control.yaml" />
-      <param name="formation/filename" value="$(find difec_ron)/config/formation.csv" />
+      <rosparam file="$(arg config_file)" />
+      <param name="formation/filename" value="$(arg formation_file)" />
 
       <param name="uav_name" value="$(arg uav_name)" />
       <param name="world_frame_id" value="$(arg uav_name)/gps_origin" />
