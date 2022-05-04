@@ -1,0 +1,63 @@
+<launch>
+
+  <arg name="simulation" default="$(eval env('RUN_TYPE') == 'simulation')" />
+
+  <arg name="uav_name" default="$(optenv UAV_NAME uav)"/>
+  <arg name="respawn" default="false" />
+  <arg name="use_raw_measurements" default="false" />
+
+  <arg name="rosbag_remap" default="false" />
+  <arg unless="$(arg rosbag_remap)" name="suf" value=""/>
+  <arg     if="$(arg rosbag_remap)" name="suf" value="_"/>
+
+  <arg name="debug" default="false" />
+  <arg unless="$(arg debug)" name="launch_prefix" value=""/>
+  <arg     if="$(arg debug)" name="launch_prefix" value="debug_roslaunch"/>
+
+  <arg name="profile" default="false" />
+  <arg unless="$(arg profile)" name="launch_prefix_profile" value=""/>
+  <arg     if="$(arg profile)" name="launch_prefix_profile" value="valgrind --tool=callgrind --callgrind-out-file='callgrind.out.%p'"/>
+
+  <!-- nodelet-related arguments -->
+  <arg name="standalone" default="true" />
+  <arg name="manager" default="swarm_nodelet_manager" />
+  <arg name="swarm_nodelet" value="difec_ron/SwarmControl" />
+  <arg unless="$(arg standalone)" name="nodelet_load" value="load $(arg swarm_nodelet) $(arg manager)"/>
+  <arg     if="$(arg standalone)" name="nodelet_load" value="standalone $(arg swarm_nodelet)"/>
+
+  <arg unless="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/filteredPoses"/>
+  <arg     if="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/mergedMeasurements"/>
+
+  <arg name="config_file" default="$(find difec_ron)/config/swarm_control.yaml"/>
+  <arg name="formation_file" default="$(find difec_ron)/config/formation.csv"/>
+
+  <group ns="$(arg uav_name)">
+
+    <node pkg="nodelet" type="nodelet" name="swarm_control" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
+
+      <rosparam file="$(arg config_file)" />
+      <param name="formation/filename" value="$(arg formation_file)" />
+
+      <param name="uav_name" value="$(arg uav_name)" />
+      <param name="world_frame_id" value="$(arg uav_name)/fcu" />
+      <param name="uav_frame_id" value="$(arg uav_name)/fcu" />
+    
+      <!-- Subscribers -->
+      <remap from="~detections_in" to="$(arg detections_topic)" />
+
+      <!-- Publishers -->
+      <remap from="~velocity_out" to="control_manager/velocity_reference" />
+
+    </node>
+
+    <group if="$(arg use_raw_measurements)">
+
+      <node pkg="topic_tools" type="relay" name="uvdar_relayA" args="uvdar/measuredPosesB uvdar/mergedMeasurements" output="screen" />
+      <node pkg="topic_tools" type="relay" name="uvdar_relayB" args="uvdar/measuredPosesL uvdar/mergedMeasurements" output="screen" />
+      <node pkg="topic_tools" type="relay" name="uvdar_relayC" args="uvdar/measuredPosesR uvdar/mergedMeasurements" output="screen" />
+    
+    </group>
+  
+  </group>
+
+</launch>
