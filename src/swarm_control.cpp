@@ -361,7 +361,6 @@ namespace difec_ron
       // prepare the necessary constants
       const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
       const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
-      const double eps = 1e-9;
     
       vec3_t u_accum_1 = vec3_t::Zero();
       vec3_t u_accum_2 = vec3_t::Zero();
@@ -390,16 +389,8 @@ namespace difec_ron
     
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
-        // construct the matrices V, L and then C_t
-        const vec3_t v_d1 = vec3_t(-p_dR.y(), p_dR.x(), 0).normalized();
-        const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
-        const vec3_t v_d3(0, 0, 1);
-        mat3_t V;
-        V.col(0) = v_d1;
-        V.col(1) = v_d2;
-        V.col(2) = v_d3;
-        const mat3_t L = vec3_t(m.sig*m.sig, eps, eps).asDiagonal();
-        const mat3_t C_t = V*L*V.transpose();
+        // convert envelope the circular gaussian distribution with a 3D gaussian
+        const auto [p_dRp, C_t] = envelope_circular_gaussian(p_dR, m.sig);
         const mat3_t C_c = m.C + C_t;
         const vec3_t p_mdR = m.p - p_dR;
         // TODO: proper inverse calculation and checking
@@ -616,6 +607,27 @@ namespace difec_ron
             from.z(), 0, -from.x(),
             -from.y(), from.x(), 0;
       return ss;
+    }
+    //}
+
+    /* envelope_circular_gaussian() method //{ */
+    std::pair<vec3_t, mat3_t> envelope_circular_gaussian(const vec3_t& mean, const double sig, const double bulgarian = 1.0, const double eps = 1e-9)
+    {
+      // if the standard deviation is so large that the desired certainty covers at least half of the circle, clamp it
+      // cases where the deviation is larger are equivalent
+      const double arc_hang = std::min(bulgarian*sig, M_PI_2); // this is half the angle of the arc
+      // helper variables
+      const double c = std::cos(arc_hang);
+      const double s = std::sin(arc_hang);
+      // calculate the new mean of the enveloping distribution
+      const vec3_t nmean = mean*c;
+      // a rotation matrix to rotate the ellipse so that it's correctly aligned with the original distribution
+      const mat3_t R( anax_t(std::atan2(mean.y(), mean.x()), vec3_t::UnitZ()) );
+      // construct the enveloping covariance matrix (so far aligned with the axes)
+      const mat3_t C_a = (mean.norm()*vec3_t( (1.0 - c)*(1.0 - c), s*s, eps )).asDiagonal();
+      // now rotate the matrix to align it with the original distribution
+      const mat3_t C = mrs_lib::geometry::rotateCovariance(C_a, R);
+      return {nmean, C};
     }
     //}
 
