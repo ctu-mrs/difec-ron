@@ -10,7 +10,6 @@ Panels:
         - /Odometry2/Covariance1
         - /Odometry2/Covariance1/Position1
         - /Odometry3/Covariance1
-        - /filtered1/Covariance1
         - /filtered1/Covariance1/Position1
         - /filtered1/Covariance1/Orientation1
         - /filtered (uav3 view)1/Covariance1
@@ -31,11 +30,10 @@ Panels:
         - /hypotheses - R1/Covariance1
         - /constituents - B (uav2)1/Covariance1
         - /constituents - B (uav2)1/Covariance1/Position1
-        - /constituents - L (uav2)1
         - /p_c1/21/Namespaces1
         - /TF1/Frames1
       Splitter Ratio: 0.5029411911964417
-    Tree Height: 748
+    Tree Height: 706
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -697,7 +695,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: true
+      Enabled: false
       Head Length: 0.30000001192092896
       Head Radius: 0.10000000149011612
       Name: constituents - L (uav2)
@@ -707,7 +705,7 @@ Visualization Manager:
       Shape: Axes
       Topic: /uav2/uvdar//constituentPosesL
       Unreliable: false
-      Value: true
+      Value: false
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -748,9 +746,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_formation
       Name: formation
       Namespaces:
-        uav1: true
-        uav2: true
-        uav3: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -758,9 +754,7 @@ Visualization Manager:
       Marker Topic: /uav2/swarm_control/visualization_formation
       Name: formation (uav2)
       Namespaces:
-        uav1: true
-        uav2: true
-        uav3: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -776,10 +770,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_p_c12
       Name: p_c1/2
       Namespaces:
-        p^c1 - p^d: true
-        p^c2 - p^dR: true
-        p^m - p^d: true
-        p^m - p^dR: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -787,10 +778,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_psi_comp
       Name: psi_c1/2
       Namespaces:
-        2*(psi^c - psi^d): true
-        2*(psi^m - psi^d): true
-        p^d'*S'*p^c3: true
-        p^d'*S'*p^m: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -798,7 +786,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_u
       Name: u_i
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -806,7 +794,7 @@ Visualization Manager:
       Marker Topic: /uav1/swarm_control/visualization_omega
       Name: omega_i
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -852,7 +840,10 @@ Visualization Manager:
       Marker Topic: /uav3/swarm_control/visualization_p_c12
       Name: p_c1/2 (uav3)
       Namespaces:
-        {}
+        p^c1 - p^d: true
+        p^c2 - p^dR: true
+        p^m - p^d: true
+        p^m - p^dR: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -860,7 +851,10 @@ Visualization Manager:
       Marker Topic: /uav3/swarm_control/visualization_psi_comp
       Name: psi_c1/2 (uav3)
       Namespaces:
-        {}
+        2*(psi^c - psi^d): true
+        2*(psi^m - psi^d): true
+        p^d'*S'*p^c3: true
+        p^d'*S'*p^m: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -868,7 +862,7 @@ Visualization Manager:
       Marker Topic: /uav3/swarm_control/visualization_omega
       Name: omega_i (uav3)
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -876,7 +870,7 @@ Visualization Manager:
       Marker Topic: /uav3/swarm_control/visualization_u
       Name: u_i (uav3)
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/TF
@@ -944,6 +938,28 @@ Visualization Manager:
           Value: false
         uav2/uvcam_right:
           Value: false
+        uav3/fcu:
+          Value: true
+        uav3/fcu_untilted:
+          Value: true
+        uav3/fixed_map_odom:
+          Value: true
+        uav3/garmin:
+          Value: true
+        uav3/gps_origin:
+          Value: true
+        uav3/local_origin:
+          Value: true
+        uav3/stable_origin:
+          Value: true
+        uav3/utm_origin:
+          Value: true
+        uav3/uvcam_back:
+          Value: true
+        uav3/uvcam_left:
+          Value: true
+        uav3/uvcam_right:
+          Value: true
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -994,6 +1010,26 @@ Visualization Manager:
               {}
             uav2/uvcam_right:
               {}
+          uav3/fcu:
+            uav3/fcu_untilted:
+              {}
+            uav3/fixed_map_odom:
+              {}
+            uav3/garmin:
+              {}
+            uav3/gps_origin:
+              uav3/utm_origin:
+                {}
+            uav3/local_origin:
+              {}
+            uav3/stable_origin:
+              {}
+            uav3/uvcam_back:
+              {}
+            uav3/uvcam_left:
+              {}
+            uav3/uvcam_right:
+              {}
       Update Interval: 0
       Value: true
   Enabled: true
@@ -1024,7 +1060,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 19.839902877807617
+      Distance: 21.09787940979004
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -1032,25 +1068,25 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 2.623032808303833
-        Y: 7.141178607940674
-        Z: -4.373959541320801
+        X: 3.1287930011749268
+        Y: 2.3761279582977295
+        Z: -6.499334812164307
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6297961473464966
+      Pitch: 1.5697963237762451
       Target Frame: uav1/fcu
-      Yaw: 4.57318115234375
+      Yaw: 3.298173427581787
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: true
-  Height: 1041
+  Height: 999
   Hide Left Dock: true
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd00000004000000000000017b00000377fc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073000000003e00000377000000cb00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c0000026100000001000001000000034dfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003e0000034d000000a500fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000003b500000039fc0100000002fb0000000800540069006d00650100000000000003b50000026a00fffffffb0000000800540069006d00650100000000000004500000000000000000000003b50000037700000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000017b0000034dfc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073000000003e0000034d000000cb00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c0000026100000001000001000000034dfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003e0000034d000000a500fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000050000000039fc0100000002fb0000000800540069006d00650100000000000005000000026a00fffffffb0000000800540069006d00650100000000000004500000000000000000000005000000034d00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -1059,6 +1095,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: true
-  Width: 949
-  X: 962
-  Y: 5
+  Width: 1280
+  X: 4480
+  Y: 0
