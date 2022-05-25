@@ -23,26 +23,17 @@ topics: # topics published out of this machine to receivers specified above
  - name: "/swarm_multireconfigure/multireconfigure/parameter_descriptions"
    compress: true # enable bz2 compression
    rate: 10.0
- - name: "/swarm_multireconfigure/multireconfigure/parameter_updates"
+ - name: "swarm_control/parameter_descriptions"
    compress: true # enable bz2 compression
    rate: 10.0
- - name: "/uav1/swarm_control/parameter_descriptions"
-   compress: true # enable bz2 compression
-   rate: 10.0
- - name: "/uav1/swarm_control/parameter_updates"
-   compress: true # enable bz2 compression
-   rate: 10.0
- - name: "/uav2/swarm_control/parameter_descriptions"
-   compress: true # enable bz2 compression
-   rate: 10.0
- - name: "/uav2/swarm_control/parameter_updates"
+ - name: "swarm_control/parameter_updates"
    compress: true # enable bz2 compression
    rate: 10.0
 
 services:
   - name: "/swarm_multireconfigure/multireconfigure/set_parameters"
     type: dynamic_reconfigure/Reconfigure
-  - name: "/uav1/swarm_control/set_parameters"
+  - name: "swarm_control/set_parameters"
     type: dynamic_reconfigure/Reconfigure
-  - name: "/uav2/swarm_control/set_parameters"
+  - name: "swarm_control/set_parameters"
     type: dynamic_reconfigure/Reconfigure

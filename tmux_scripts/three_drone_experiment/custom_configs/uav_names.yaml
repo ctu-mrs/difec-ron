@@ -21,6 +21,6 @@ network:
 
   robot_names: [
 
-    MyslPlacka, SkumpaLinux
+    uav11, uav12, uav14,
 
   ]
