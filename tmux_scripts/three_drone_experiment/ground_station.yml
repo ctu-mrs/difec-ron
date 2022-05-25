@@ -9,9 +9,9 @@ windows:
   - status:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav11; waitForRos; roslaunch mrs_uav_status status.launch
-        - export UAV_NAME=uav12; waitForRos; roslaunch mrs_uav_status status.launch
-        - export UAV_NAME=uav14; waitForRos; roslaunch mrs_uav_status status.launch
+        - export UAV_NAME=uav11; waitForRos; roslaunch mrs_uav_status terminal.launch
+        - export UAV_NAME=uav12; waitForRos; roslaunch mrs_uav_status terminal.launch
+        - export UAV_NAME=uav14; waitForRos; roslaunch mrs_uav_status terminal.launch
   - nimbro:
       layout: even-vertical
       panes:
