@@ -223,6 +223,9 @@ namespace difec_ron
         const auto msg_ptr = m_sh_detections.waitForNew(timeout);
         if (msg_ptr)
           process_msg(msg_ptr);
+
+        // periodically publish the dynamic reconfigure descriptions for nimbro
+        m_drmgr_ptr->publish_descriptions();
       }
     }
     //}

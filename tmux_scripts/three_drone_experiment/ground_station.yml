@@ -1,0 +1,26 @@
+name: difec_ron
+root: ./
+startup_window: status 
+windows:
+  - roscore:
+      layout: even-vertical
+      panes:
+        - roscore
+  - status:
+      layout: even-vertical
+      panes:
+        - export UAV_NAME=uav11; waitForRos; roslaunch mrs_uav_status status.launch
+        - export UAV_NAME=uav12; waitForRos; roslaunch mrs_uav_status status.launch
+        - export UAV_NAME=uav14; waitForRos; roslaunch mrs_uav_status status.launch
+  - nimbro:
+      layout: even-vertical
+      panes:
+        - waitForRos; rosrun mrs_uav_general run_nimbro.py custom_configs/nimbro.yaml custom_configs/uav_names.yaml
+  - tf_connector:
+      layout: even-vertical
+      panes:
+        - waitForRos; roslaunch difec_ron tf_connector_rw.launch
+  - multireconfigure:
+      layout: even-vertical
+      panes:
+        - waitForRos; roslaunch difec_ron multireconfigure.launch
