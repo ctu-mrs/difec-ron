@@ -145,6 +145,7 @@ namespace difec_ron
       //}
 
       m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0/repeat_rate), &SwarmControl::velocity_command_loop, this);
+      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0), &SwarmControl::dynrec_publish_loop, this);
 
       m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
 
@@ -223,9 +224,6 @@ namespace difec_ron
         const auto msg_ptr = m_sh_detections.waitForNew(timeout);
         if (msg_ptr)
           process_msg(msg_ptr);
-
-        // periodically publish the dynamic reconfigure descriptions for nimbro
-        m_drmgr_ptr->publish_descriptions();
       }
     }
     //}
@@ -586,6 +584,15 @@ namespace difec_ron
     }
     //}
 
+    /* dynrec_publish_loop() method //{ */
+    void dynrec_publish_loop([[maybe_unused]] const ros::TimerEvent& evt)
+    {
+      // periodically publish the dynamic reconfigure descriptions and values for nimbro
+      m_drmgr_ptr->publish_descriptions();
+      m_drmgr_ptr->update_config(m_drmgr_ptr->config);
+    }
+    //}
+
     // --------------------------------------------------------------
     // |                  Mathematical functions                    |
     // --------------------------------------------------------------
@@ -932,6 +939,7 @@ namespace difec_ron
     ros::Publisher m_pub_vel_ref;
 
     ros::Timer m_tim_vel_cmd;
+    ros::Timer m_tim_pub_dynrec;
 
     //}
 

@@ -23,4 +23,8 @@ windows:
   - multireconfigure:
       layout: even-vertical
       panes:
-        - waitForRos; roslaunch difec_ron multireconfigure.launch
+        - waitForRos; roslaunch difec_ron multireconfigure_rw.launch
+  - rqt_reconfigure:
+      layout: even-vertical
+      panes:
+        - waitForRos; rosrun rqt_reconfigure rqt_reconfigure

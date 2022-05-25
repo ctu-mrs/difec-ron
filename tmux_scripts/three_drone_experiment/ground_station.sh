@@ -14,7 +14,7 @@ cd $MY_PATH
 rm .tmuxinator.yml
 
 # link the session file to .tmuxinator.yml
-ln three_drones.yml .tmuxinator.yml
+ln ground_station.yml .tmuxinator.yml
 
 # start tmuxinator
 tmuxinator
