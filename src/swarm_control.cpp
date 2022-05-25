@@ -63,6 +63,15 @@ namespace difec_ron
       agent_t formation;
       det_t detected;
     };
+
+    struct visualization_t
+    {
+      visualization_t(const bool visualize) : visualize(visualize) {};
+      const bool visualize;
+
+      visualization_msgs::MarkerArray p_cs;
+      visualization_msgs::MarkerArray psi_cs;
+    };
     
     //}
 
@@ -247,6 +256,7 @@ namespace difec_ron
       const mat3_t tf_rot = tf.rotation();
       const rads_t tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
 
+      // | ----------------- Prepare data for DIFEC ----------------- |
       // fill the vector of detected agents and their corresponding desired poses in the formation
       std::vector<agent_meas_t> agent_meass;
       for (const auto& pose : msg->poses)
@@ -295,139 +305,32 @@ namespace difec_ron
       }
 
       // some debugging shit
-      visualization_msgs::MarkerArray p_cs;
-      visualization_msgs::MarkerArray psi_cs;
-      const bool visualize = m_pub_vis_p_cs.getNumSubscribers() > 0;
+      visualization_t vis(m_pub_vis_p_cs.getNumSubscribers() > 0 || m_pub_vis_psi_cs.getNumSubscribers() > 0);
 
-      // prepare the necessary constants
-      const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
-      const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
-      const double eps = 1e-9;
-
-      vec3_t u_accum_1 = vec3_t::Zero();
-      vec3_t u_accum_2 = vec3_t::Zero();
-      double omega_accum_1 = 0.0;
-      double omega_accum_2 = 0.0;
-      for (const auto& meas : agent_meass)
+      // | ----------------------- APPLY DIFEC ---------------------- |
+      vec3_t u;
+      double omega;
+      if (m_drmgr_ptr->config.control__use_noise)
       {
-        // shorthand for the measured relative pose
-        const auto& m = meas.detected;
-        // shorthand for the desired relative pose
-        const auto& d = meas.formation.desired_relative_pose;
-        // heading difference between measured and desired position
-        const rads_t psi_md = m.psi - d.psi;
-        // rotation matrix corresponding to the heading difference
-        const mat3_t R_dpsi( anax_t(psi_md.value(), vec3_t::UnitZ()) );
-        // position difference between measured and desired position
-        const vec3_t p_md = m.p - d.p;
-
-        // | --------------------- calculate p_c1 --------------------- |
-        // TODO: proper inverse calculation and checking
-        const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
-        const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::probit(l) + m.p;
-        const rads_t psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
-        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
-
-        // | --------------------- calculate p_c2 --------------------- |
-        const vec3_t p_dR = R_dpsi.transpose()*d.p;
-        // construct the matrices V, L and then C_t
-        const vec3_t v_d1 = vec3_t(-p_dR.y(), p_dR.x(), 0).normalized();
-        const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
-        const vec3_t v_d3(0, 0, 1);
-        mat3_t V;
-        V.col(0) = v_d1;
-        V.col(1) = v_d2;
-        V.col(2) = v_d3;
-        const mat3_t L = vec3_t(m.sig*m.sig, eps, eps).asDiagonal();
-        const mat3_t C_t = V*L*V.transpose();
-        const mat3_t C_c = m.C + C_t;
-        const vec3_t p_mdR = m.p - p_dR;
-        // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::probit(l) + m.p;
-
-        // | --------------------- calculate p_c3 --------------------- |
-        const rads_t beta = -std::atan2(m.p.y(), m.p.x());
-        const mat3_t R_beta( anax_t(beta.value(), vec3_t::UnitZ()) );
-        const mat3_t C_r = R_beta*m.C*R_beta.transpose();
-        const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
-        const rads_t tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::probit(l);
-        const mat3_t R_tot( anax_t(tot_angle.value(), vec3_t::UnitZ()) );
-        const vec3_t p_c3 = R_tot*m.p;
-
-        // | ------------- accumulate the calculated stuff ------------ |
-        const mat3_t S = skew_symmetric(vec3_t::UnitZ());
-        u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), p_md);
-        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), p_mdR);
-        const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
-        const double tmp2 = d.p.transpose()*S.transpose()*m.p;
-        omega_accum_1 += clamp(tmp1, 0.0, tmp2);
-        omega_accum_2 += clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
-
-        /* visualization stuff //{ */
-        
-        if (visualize)
-        {
-          // Positional components
-          visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
-          p_c1d_vis.id = 4*meas.detected.id;
-          p_c1d_vis.ns = "p^c1 - p^d";
-        
-          visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
-          p_md_vis.id = 4*meas.detected.id + 1;
-          p_md_vis.ns = "p^m - p^d";
-        
-          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
-          p_c2dR_vis.id = 4*meas.detected.id + 2;
-          p_c2dR_vis.ns = "p^c2 - p^dR";
-        
-          visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdR, now, m_vis_pmdR_color);
-          p_mdR_vis.id = 4*meas.detected.id + 3;
-          p_mdR_vis.ns = "p^m - p^dR";
-        
-          p_cs.markers.push_back(p_c1d_vis);
-          p_cs.markers.push_back(p_md_vis);
-          p_cs.markers.push_back(p_c2dR_vis);
-          p_cs.markers.push_back(p_mdR_vis);
-        
-          // Rotational components
-          visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
-          psi_cd_vis.id = 4*meas.detected.id + 4;
-          psi_cd_vis.ns = "2*(psi^c - psi^d)";
-        
-          visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
-          psi_cm_vis.id = 4*meas.detected.id + 5;
-          psi_cm_vis.ns = "2*(psi^m - psi^d)";
-        
-          visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
-          psi_bearing_restrained_vis.id = 4*meas.detected.id + 6;
-          psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
-        
-          visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
-          psi_bearing_orig_vis.id = 4*meas.detected.id + 7;
-          psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
-        
-          psi_cs.markers.push_back(psi_cd_vis);
-          psi_cs.markers.push_back(psi_cm_vis);
-          psi_cs.markers.push_back(psi_bearing_restrained_vis);
-          psi_cs.markers.push_back(psi_bearing_orig_vis);
-        
-        }
-        
-        //}
+        const auto action = difec_ron(agent_meass, now, fil_freq, vis);
+        u = action.first;
+        omega = action.second;
+      }
+      else
+      {
+        const auto action = difec(agent_meass, now, fil_freq, vis);
+        u = action.first;
+        omega = action.second;
       }
 
-      const vec3_t u = k_e*(u_accum_1 + u_accum_2);
-      const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
-
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
 
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
-      if (visualize)
+      if (vis.visualize)
       {
-        m_pub_vis_p_cs.publish(p_cs);
-        m_pub_vis_psi_cs.publish(psi_cs);
+        m_pub_vis_p_cs.publish(vis.p_cs);
+        m_pub_vis_psi_cs.publish(vis.psi_cs);
       }
 
       if (m_drmgr_ptr->config.control__enabled)
@@ -450,7 +353,224 @@ namespace difec_ron
       prev_action_time = now;
     }
     //}
+    
+    /* difec_ron() method //{ */
+    std::pair<vec3_t, double> difec_ron(const std::vector<agent_meas_t>& agent_meass, const ros::Time& now, const double fil_freq, visualization_t& vis)
+    {
+      // prepare the necessary constants
+      const double l = m_drmgr_ptr->config.control__admissible_overshoot_probability;
+      const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
+      const double eps = 1e-9;
+    
+      vec3_t u_accum_1 = vec3_t::Zero();
+      vec3_t u_accum_2 = vec3_t::Zero();
+      double omega_accum_1 = 0.0;
+      double omega_accum_2 = 0.0;
+      for (const auto& meas : agent_meass)
+      {
+        // shorthand for the measured relative pose
+        const auto& m = meas.detected;
+        // shorthand for the desired relative pose
+        const auto& d = meas.formation.desired_relative_pose;
+        // heading difference between measured and desired position
+        const rads_t psi_md = m.psi - d.psi;
+        // rotation matrix corresponding to the heading difference
+        const mat3_t R_dpsi( anax_t(psi_md.value(), vec3_t::UnitZ()) );
+        // position difference between measured and desired position
+        const vec3_t p_md = m.p - d.p;
 
+        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+    
+        // | --------------------- calculate p_c1 --------------------- |
+        // TODO: proper inverse calculation and checking
+        const double sig_p = p_md.norm()/sqrt(p_md.transpose() * m.C.inverse() * p_md);
+        const vec3_t p_c1 = sig_p*p_md.normalized()*mrs_lib::probit(l) + m.p;
+        const rads_t psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
+    
+        // | --------------------- calculate p_c2 --------------------- |
+        const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        // construct the matrices V, L and then C_t
+        const vec3_t v_d1 = vec3_t(-p_dR.y(), p_dR.x(), 0).normalized();
+        const vec3_t v_d2 = vec3_t(p_dR.x(), p_dR.x(), 0).normalized();
+        const vec3_t v_d3(0, 0, 1);
+        mat3_t V;
+        V.col(0) = v_d1;
+        V.col(1) = v_d2;
+        V.col(2) = v_d3;
+        const mat3_t L = vec3_t(m.sig*m.sig, eps, eps).asDiagonal();
+        const mat3_t C_t = V*L*V.transpose();
+        const mat3_t C_c = m.C + C_t;
+        const vec3_t p_mdR = m.p - p_dR;
+        // TODO: proper inverse calculation and checking
+        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::probit(l) + m.p;
+    
+        // | --------------------- calculate p_c3 --------------------- |
+        const rads_t beta = -std::atan2(m.p.y(), m.p.x());
+        const mat3_t R_beta( anax_t(beta.value(), vec3_t::UnitZ()) );
+        const mat3_t C_r = R_beta*m.C*R_beta.transpose();
+        const double sig_gamma = std::sqrt(C_r(1, 1))/m.p.norm();
+        const rads_t tot_angle = sig_gamma * mrs_lib::signum(d.psi - m.psi) * mrs_lib::probit(l);
+        const mat3_t R_tot( anax_t(tot_angle.value(), vec3_t::UnitZ()) );
+        const vec3_t p_c3 = R_tot*m.p;
+    
+        // | ------------- accumulate the calculated stuff ------------ |
+        const mat3_t S = skew_symmetric(vec3_t::UnitZ());
+        u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), p_md);
+        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), p_mdR);
+        const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
+        const double tmp2 = d.p.transpose()*S.transpose()*m.p;
+        omega_accum_1 += clamp(tmp1, 0.0, tmp2);
+        omega_accum_2 += clamp(psi_c - d.psi, 0.0, m.psi - d.psi);
+    
+        /* visualization stuff //{ */
+    
+        if (vis.visualize)
+        {
+          // Positional components
+          visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
+          p_c1d_vis.id = 8*meas.detected.id;
+          p_c1d_vis.ns = "p^c1 - p^d";
+    
+          visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
+          p_md_vis.id = 8*meas.detected.id + 1;
+          p_md_vis.ns = "p^m - p^d";
+    
+          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
+          p_c2dR_vis.id = 8*meas.detected.id + 2;
+          p_c2dR_vis.ns = "p^c2 - p^dR";
+    
+          visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdR, now, m_vis_pmdR_color);
+          p_mdR_vis.id = 8*meas.detected.id + 3;
+          p_mdR_vis.ns = "p^m - p^dR";
+    
+          vis.p_cs.markers.push_back(p_c1d_vis);
+          vis.p_cs.markers.push_back(p_md_vis);
+          vis.p_cs.markers.push_back(p_c2dR_vis);
+          vis.p_cs.markers.push_back(p_mdR_vis);
+    
+          // Rotational components
+          visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
+          psi_cd_vis.id = 8*meas.detected.id + 4;
+          psi_cd_vis.ns = "2*(psi^c - psi^d)";
+    
+          visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
+          psi_cm_vis.id = 8*meas.detected.id + 5;
+          psi_cm_vis.ns = "2*(psi^m - psi^d)";
+    
+          visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
+          psi_bearing_restrained_vis.id = 8*meas.detected.id + 6;
+          psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
+    
+          visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
+          psi_bearing_orig_vis.id = 8*meas.detected.id + 7;
+          psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
+    
+          vis.psi_cs.markers.push_back(psi_cd_vis);
+          vis.psi_cs.markers.push_back(psi_cm_vis);
+          vis.psi_cs.markers.push_back(psi_bearing_restrained_vis);
+          vis.psi_cs.markers.push_back(psi_bearing_orig_vis);
+        }
+    
+        //}
+      }
+    
+      const vec3_t u = k_e*(u_accum_1 + u_accum_2);
+      const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
+    
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
+    
+      return {u, omega};
+    }
+    //}
+
+    /* difec() method //{ */
+    std::pair<vec3_t, double> difec(const std::vector<agent_meas_t>& agent_meass, const ros::Time& now, const double fil_freq, visualization_t& vis)
+    {
+      // prepare the necessary constants
+      const double k_e = m_drmgr_ptr->config.control__proportional_constant/fil_freq;
+    
+      vec3_t u_accum_1 = vec3_t::Zero();
+      vec3_t u_accum_2 = vec3_t::Zero();
+      double omega_accum_1 = 0.0;
+      double omega_accum_2 = 0.0;
+      for (const auto& meas : agent_meass)
+      {
+        // shorthand for the measured relative pose
+        const auto& m = meas.detected;
+        // shorthand for the desired relative pose
+        const auto& d = meas.formation.desired_relative_pose;
+        // heading difference between measured and desired position
+        const rads_t psi_md = m.psi - d.psi;
+        // rotation matrix corresponding to the heading difference
+        const mat3_t R_dpsi( anax_t(psi_md.value(), vec3_t::UnitZ()) );
+        // position difference between measured and desired position
+        const vec3_t p_md = m.p - d.p;
+        // just a helper matrix (could be replaced with a cross product)
+        const mat3_t S = skew_symmetric(vec3_t::UnitZ());
+
+        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+    
+        // | --------------------- calculate u_1 ---------------------- |
+        // TODO: proper inverse calculation and checking
+        const vec3_t u_1 = p_md;
+    
+        // | --------------------- calculate u_2 ---------------------- |
+        const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        const vec3_t u_2 = m.p - p_dR;
+    
+        // | -------------------- calculate psi_1 --------------------- |
+        const rads_t psi_1 = double(d.p.transpose()*S.transpose()*m.p);
+    
+        // | -------------------- calculate psi_2 --------------------- |
+        const rads_t psi_2 = psi_md;
+
+        u_accum_1 += u_1;
+        u_accum_2 += u_2;
+        omega_accum_1 += psi_1.value();
+        omega_accum_2 += psi_2.value();
+    
+        /* visualization stuff //{ */
+    
+        if (vis.visualize)
+        {
+          // Positional components
+          visualization_msgs::Marker u_1_vis = vector_vis(u_1, now, m_vis_p1_color);
+          u_1_vis.id = 4*meas.detected.id;
+          u_1_vis.ns = "u1";
+    
+          visualization_msgs::Marker u_2_vis = vector_vis(u_2, now, m_vis_pmd_color);
+          u_2_vis.id = 4*meas.detected.id + 1;
+          u_2_vis.ns = "u2";
+    
+          vis.p_cs.markers.push_back(u_1_vis);
+          vis.p_cs.markers.push_back(u_2_vis);
+    
+          // Rotational components
+          visualization_msgs::Marker psi1_vis = heading_vis(psi_1.value(), now, m_vis_psidc_color);
+          psi1_vis.id = 4*meas.detected.id + 2;
+          psi1_vis.ns = "psi1";
+    
+          visualization_msgs::Marker psi2_vis = heading_vis(2*psi_1.value(), now, m_vis_psidm_color);
+          psi2_vis.id = 4*meas.detected.id + 3;
+          psi2_vis.ns = "psi2";
+    
+          vis.psi_cs.markers.push_back(psi1_vis);
+          vis.psi_cs.markers.push_back(psi2_vis);
+        }
+    
+        //}
+      }
+    
+      const vec3_t u = k_e*(u_accum_1 + u_accum_2);
+      const double omega = k_e*(omega_accum_1 + 2.0*omega_accum_2);
+    
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
+    
+      return {u, omega};
+    }
+    //}
+
+    /* velocity_command_loop() method //{ */
     void velocity_command_loop([[maybe_unused]] const ros::TimerEvent& evt)
     {
       std::scoped_lock lck(m_last_vel_out_mtx);
@@ -461,6 +581,7 @@ namespace difec_ron
         m_pub_vel_ref.publish(vel_out);
       }
     }
+    //}
 
     // --------------------------------------------------------------
     // |                  Mathematical functions                    |
@@ -569,39 +690,62 @@ namespace difec_ron
     visualization_msgs::MarkerArray formation_vis(const std::vector<agent_t>& formation, const ros::Time& time) const
     {
       visualization_msgs::MarkerArray ret;
+      if (formation.empty())
+        return ret;
+
+      /* arrows //{ */
+
       for (const auto& agent : formation)
       {
-        visualization_msgs::Marker mkr;
-
-        mkr.id = agent.id;
-        mkr.ns = agent.uav_name;
-        mkr.header.frame_id = m_uav_frame_id;
-        mkr.header.stamp = time;
-        mkr.frame_locked = true;
-        mkr.type = visualization_msgs::Marker::ARROW;
-        mkr.pose.orientation.w = 1.0;
-        mkr.scale.x = 0.05; // shaft diameter
-        mkr.scale.y = 0.15; // head diameter
-        mkr.color.r = 1.0;
-        mkr.color.g = 1.0;
-        mkr.color.a = 1.0;
-
-        geometry_msgs::Point pnt;
-
+        visualization_msgs::Marker arrow;
+        
+        arrow.id = agent.id;
+        arrow.ns = agent.uav_name;
+        arrow.header.frame_id = m_uav_frame_id;
+        arrow.header.stamp = time;
+        arrow.frame_locked = true;
+        arrow.type = visualization_msgs::Marker::ARROW;
+        arrow.pose.orientation.w = 1.0;
+        arrow.scale.x = 0.05; // shaft diameter
+        arrow.scale.y = 0.15; // head diameter
+        arrow.color.r = 1.0;
+        arrow.color.g = 1.0;
+        arrow.color.a = 1.0;
+        
         const vec3_t& des_pos = agent.desired_relative_pose.p;
-        pnt.x = des_pos.x();
-        pnt.y = des_pos.y();
-        pnt.z = des_pos.z();
-        mkr.points.push_back(pnt);
-
+        arrow.points.push_back(mrs_lib::geometry::fromEigen(des_pos));
+        
         const vec3_t des_pos_ori = des_pos + anax_t(agent.desired_relative_pose.psi.value(), vec3_t::UnitZ())*vec3_t::UnitX();
-        pnt.x = des_pos_ori.x();
-        pnt.y = des_pos_ori.y();
-        pnt.z = des_pos_ori.z();
-        mkr.points.push_back(pnt);
-
-        ret.markers.push_back(mkr);
+        arrow.points.push_back(mrs_lib::geometry::fromEigen(des_pos_ori));
+        
+        ret.markers.push_back(arrow);
       }
+        
+      //}
+
+      /* lines //{ */
+      visualization_msgs::Marker lines;
+      lines.id = -1;
+      lines.ns = "formation";
+      lines.header.frame_id = m_uav_frame_id;
+      lines.header.stamp = time;
+      lines.frame_locked = true;
+      lines.type = visualization_msgs::Marker::LINE_STRIP;
+      lines.pose.orientation.w = 1.0;
+      lines.scale.x = 0.03; // line segment width
+      lines.color.r = 1.0;
+      lines.color.g = 1.0;
+      lines.color.a = 1.0;
+
+      // add the positions of the agents
+      for (const auto& agent : formation)
+        lines.points.push_back(mrs_lib::geometry::fromEigen(agent.desired_relative_pose.p));
+      lines.points.push_back(mrs_lib::geometry::fromEigen(formation.front().desired_relative_pose.p));
+
+      ret.markers.push_back(lines);
+      
+      //}
+
       return ret;
     }
     //}
