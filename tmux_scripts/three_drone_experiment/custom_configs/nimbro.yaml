@@ -35,5 +35,3 @@ services:
     type: dynamic_reconfigure/Reconfigure
   - name: "swarm_control/set_parameters"
     type: dynamic_reconfigure/Reconfigure
-  - name: "swarm_control/set_parameters"
-    type: dynamic_reconfigure/Reconfigure
