@@ -71,6 +71,7 @@ namespace difec_ron
 
       visualization_msgs::MarkerArray p_cs;
       visualization_msgs::MarkerArray psi_cs;
+      visualization_msgs::MarkerArray p_c2s;
     };
     
     //}
@@ -139,6 +140,7 @@ namespace difec_ron
       m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
       m_pub_vis_p_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c12", 10, true);
       m_pub_vis_psi_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_psi_comp", 10, true);
+      m_pub_vis_p_c1s = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c1", 10, true);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
@@ -306,7 +308,7 @@ namespace difec_ron
       }
 
       // some debugging shit
-      visualization_t vis(m_pub_vis_p_cs.getNumSubscribers() > 0 || m_pub_vis_psi_cs.getNumSubscribers() > 0);
+      visualization_t vis(m_pub_vis_p_cs.getNumSubscribers() > 0 || m_pub_vis_psi_cs.getNumSubscribers() > 0 || m_pub_vis_p_c1s.getNumSubscribers() > 0);
 
       // | ----------------------- APPLY DIFEC ---------------------- |
       vec3_t u;
@@ -332,6 +334,7 @@ namespace difec_ron
       {
         m_pub_vis_p_cs.publish(vis.p_cs);
         m_pub_vis_psi_cs.publish(vis.psi_cs);
+        m_pub_vis_p_c1s.publish(vis.p_c2s);
       }
 
       if (m_drmgr_ptr->config.control__enabled)
@@ -389,18 +392,17 @@ namespace difec_ron
     
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
-        const vec3_t p_mdR = m.p - p_dR;
         // convert envelope the circular gaussian distribution with a 3D gaussian
         const auto [p_dRp, C_t] = envelope_circular_gaussian(p_dR, m.sig);
-        // the merged gaussian distrubution around the measurement will have an offset mean
-        const vec3_t mean_offset = p_dRp - p_dR;
-        const vec3_t new_mean = m.p + mean_offset;
+        const vec3_t p_mdRp = m.p - p_dRp;
+        const vec3_t dir = p_mdRp.normalized();
+        // the merged gaussian distrubution around the measurement
         const mat3_t C_c = m.C + C_t;
         // project the merged and offset distribution to a line between p_m and p_dR
-        const auto [mu, sig] = project_gaussian_to_line(new_mean, C_c, p_dR, p_mdR);
+        const auto [mu, sig] = project_gaussian_to_line(m.p, C_c, p_dRp, dir);
         // calculate the resulting vector that intersects the desired overshoot probability ellipsoid
         const double len = mu + sig*mrs_lib::probit(l);
-        const vec3_t p_c2 = p_mdR.normalized() * len;
+        const vec3_t p_c2 = p_dRp + dir.normalized() * len;
     
         // | --------------------- calculate p_c3 --------------------- |
         const rads_t beta = -std::atan2(m.p.y(), m.p.x());
@@ -414,7 +416,7 @@ namespace difec_ron
         // | ------------- accumulate the calculated stuff ------------ |
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
         u_accum_1 += clamp(p_c1 - d.p, vec3_t::Zero(), p_md);
-        u_accum_2 += clamp(p_c2 - p_dR, vec3_t::Zero(), p_mdR);
+        u_accum_2 += clamp(p_c2 - p_dRp, vec3_t::Zero(), p_mdRp);
         const double tmp1 = d.p.transpose()*S.transpose()*p_c3;
         const double tmp2 = d.p.transpose()*S.transpose()*m.p;
         omega_accum_1 += clamp(tmp1, 0.0, tmp2);
@@ -425,48 +427,91 @@ namespace difec_ron
         if (vis.visualize)
         {
           // Positional components
-          visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
-          p_c1d_vis.id = 8*meas.detected.id;
-          p_c1d_vis.ns = "p^c1 - p^d";
-    
-          visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
-          p_md_vis.id = 8*meas.detected.id + 1;
-          p_md_vis.ns = "p^m - p^d";
-    
-          visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dR, now, m_vis_p2_color);
-          p_c2dR_vis.id = 8*meas.detected.id + 2;
-          p_c2dR_vis.ns = "p^c2 - p^dR";
-    
-          visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdR, now, m_vis_pmdR_color);
-          p_mdR_vis.id = 8*meas.detected.id + 3;
-          p_mdR_vis.ns = "p^m - p^dR";
-    
-          vis.p_cs.markers.push_back(p_c1d_vis);
-          vis.p_cs.markers.push_back(p_md_vis);
-          vis.p_cs.markers.push_back(p_c2dR_vis);
-          vis.p_cs.markers.push_back(p_mdR_vis);
+          {
+            visualization_msgs::Marker p_c1d_vis = vector_vis(p_c1 - d.p, now, m_vis_p1_color);
+            p_c1d_vis.id = 4*meas.detected.id;
+            p_c1d_vis.ns = "p^c1 - p^d";
+            
+            visualization_msgs::Marker p_md_vis = vector_vis(p_md, now, m_vis_pmd_color);
+            p_md_vis.id = 4*meas.detected.id + 1;
+            p_md_vis.ns = "p^m - p^d";
+            
+            visualization_msgs::Marker p_c2dR_vis = vector_vis(p_c2 - p_dRp, now, m_vis_p2_color);
+            p_c2dR_vis.id = 4*meas.detected.id + 2;
+            p_c2dR_vis.ns = "p^c2 - p^dR'";
+            
+            visualization_msgs::Marker p_mdR_vis = vector_vis(p_mdRp, now, m_vis_pmdR_color);
+            p_mdR_vis.id = 4*meas.detected.id + 3;
+            p_mdR_vis.ns = "p^m - p^dR'";
+            
+            vis.p_cs.markers.push_back(p_c1d_vis);
+            vis.p_cs.markers.push_back(p_md_vis);
+            vis.p_cs.markers.push_back(p_c2dR_vis);
+            vis.p_cs.markers.push_back(p_mdR_vis);
+          }
     
           // Rotational components
-          visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
-          psi_cd_vis.id = 8*meas.detected.id + 4;
-          psi_cd_vis.ns = "2*(psi^c - psi^d)";
-    
-          visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
-          psi_cm_vis.id = 8*meas.detected.id + 5;
-          psi_cm_vis.ns = "2*(psi^m - psi^d)";
-    
-          visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
-          psi_bearing_restrained_vis.id = 8*meas.detected.id + 6;
-          psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
-    
-          visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
-          psi_bearing_orig_vis.id = 8*meas.detected.id + 7;
-          psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
-    
-          vis.psi_cs.markers.push_back(psi_cd_vis);
-          vis.psi_cs.markers.push_back(psi_cm_vis);
-          vis.psi_cs.markers.push_back(psi_bearing_restrained_vis);
-          vis.psi_cs.markers.push_back(psi_bearing_orig_vis);
+          {
+            visualization_msgs::Marker psi_cd_vis = heading_vis(2*(psi_c - d.psi), now, m_vis_psidc_color);
+            psi_cd_vis.id = 4*meas.detected.id + 1;
+            psi_cd_vis.ns = "2*(psi^c - psi^d)";
+            
+            visualization_msgs::Marker psi_cm_vis = heading_vis(2*(m.psi - d.psi), now, m_vis_psidm_color);
+            psi_cm_vis.id = 4*meas.detected.id + 2;
+            psi_cm_vis.ns = "2*(psi^m - psi^d)";
+            
+            visualization_msgs::Marker psi_bearing_restrained_vis = heading_vis(tmp1, now, m_vis_psi_bearing_r_color);
+            psi_bearing_restrained_vis.id = 4*meas.detected.id + 3;
+            psi_bearing_restrained_vis.ns = "p^d'*S'*p^c3";
+            
+            visualization_msgs::Marker psi_bearing_orig_vis = heading_vis(tmp2, now, m_vis_psi_bearing_o_color);
+            psi_bearing_orig_vis.id = 4*meas.detected.id + 4;
+            psi_bearing_orig_vis.ns = "p^d'*S'*p^m";
+            
+            vis.psi_cs.markers.push_back(psi_cd_vis);
+            vis.psi_cs.markers.push_back(psi_cm_vis);
+            vis.psi_cs.markers.push_back(psi_bearing_restrained_vis);
+            vis.psi_cs.markers.push_back(psi_bearing_orig_vis);
+          }
+
+          // construction of p_c2
+          {
+            visualization_msgs::Marker p_dR_vis = vector_vis(p_dR, now, m_vis_p1_color);
+            p_dR_vis.id = 8*meas.detected.id;
+            p_dR_vis.ns = "p^dR";
+            
+            visualization_msgs::Marker p_dRp_vis = vector_vis(p_dRp, now, m_vis_p1_color);
+            p_dRp_vis.id = 8*meas.detected.id + 1;
+            p_dRp_vis.ns = "p^dR'";
+            
+            visualization_msgs::Marker p_m_vis = vector_vis(m.p, now, m_vis_p1_color);
+            p_m_vis.id = 8*meas.detected.id + 2;
+            p_m_vis.ns = "p^m";
+            
+            visualization_msgs::Marker p_sig_vis = heading_uncertainty_vis(p_dR, m.sig, now, m_vis_pmdR_color);
+            p_sig_vis.id = 8*meas.detected.id + 3;
+            p_sig_vis.ns = "sig_m";
+            
+            visualization_msgs::Marker p_Ct_vis = covariance_vis(p_dRp, C_t, now, m_vis_psidc_color);
+            p_Ct_vis.id = 8*meas.detected.id + 4;
+            p_Ct_vis.ns = "C_t";
+            
+            visualization_msgs::Marker p_Cc_vis = covariance_vis(m.p, C_c, now, m_vis_psidc_color);
+            p_Cc_vis.id = 8*meas.detected.id + 5;
+            p_Cc_vis.ns = "C_c";
+            
+            visualization_msgs::Marker p_c2_vis = vector_vis(p_c2, now, m_vis_p2_color);
+            p_c2_vis.id = 8*meas.detected.id + 6;
+            p_c2_vis.ns = "p^c2";
+            
+            vis.p_c2s.markers.push_back(p_dR_vis);
+            vis.p_c2s.markers.push_back(p_dRp_vis);
+            vis.p_c2s.markers.push_back(p_m_vis);
+            vis.p_c2s.markers.push_back(p_sig_vis);
+            vis.p_c2s.markers.push_back(p_Ct_vis);
+            vis.p_c2s.markers.push_back(p_Cc_vis);
+            vis.p_c2s.markers.push_back(p_c2_vis);
+          }
         }
     
         //}
@@ -627,10 +672,11 @@ namespace difec_ron
       const double s = std::sin(arc_hang);
       // calculate the new mean of the enveloping distribution
       const vec3_t nmean = mean*c;
+      const double r = mean.norm();
+      // construct the enveloping covariance matrix (so far aligned with the axes)
+      const mat3_t C_a = (r*r*vec3_t( (1.0 - c)*(1.0 - c), s*s, eps )).asDiagonal();
       // a rotation matrix to rotate the ellipse so that it's correctly aligned with the original distribution
       const mat3_t R( anax_t(std::atan2(mean.y(), mean.x()), vec3_t::UnitZ()) );
-      // construct the enveloping covariance matrix (so far aligned with the axes)
-      const mat3_t C_a = (mean.norm()*vec3_t( (1.0 - c)*(1.0 - c), s*s, eps )).asDiagonal();
       // now rotate the matrix to align it with the original distribution
       const mat3_t C = mrs_lib::geometry::rotateCovariance(C_a, R);
       return {nmean, C};
@@ -786,6 +832,108 @@ namespace difec_ron
       //}
 
       return ret;
+    }
+    //}
+
+    template <typename T>
+    T normal_pdf(const T x, const T mu, const T sig)
+    {
+      static const T inv_sqrt_2pi = 0.3989422804014327;
+      const T a = (x - mu) / sig;
+      return inv_sqrt_2pi / sig * std::exp(-T(0.5) * a * a);
+    }
+
+    /* heading_uncertainty_vis() method //{ */
+    visualization_msgs::Marker heading_uncertainty_vis(const vec3_t& mean, const double sig, const ros::Time& time, const std_msgs::ColorRGBA& color)
+    {
+      visualization_msgs::Marker mkr;
+      mkr.header.frame_id = m_uav_frame_id;
+      mkr.header.stamp = time;
+      mkr.type = visualization_msgs::Marker::LINE_LIST;
+      mkr.pose.orientation.w = 1.0;
+      mkr.scale.x = 0.05; // line width
+      std_msgs::ColorRGBA col = color;
+    
+      const double r = mean.norm();
+      const double ang_center = std::atan2(mean.y(), mean.x());
+      const double pdf_norm = normal_pdf(0.0, 0.0, sig);
+    
+      constexpr int N = 10;
+      const double ang_hrange = 3*sig;
+      const double ang_step = ang_hrange/N;
+      for (int it = -N; it < N; it++)
+      {
+        const double ang = it*ang_step + ang_center;
+        const double ang1 = ang - ang_step/2.0;
+        const double ang2 = ang + ang_step/2.0;
+        const double intensity = normal_pdf(ang, ang_center, sig)/pdf_norm;
+        geometry_msgs::Point pnt;
+    
+        pnt.x = r*std::cos(ang1);
+        pnt.y = r*std::sin(ang1);
+        mkr.points.push_back(pnt);
+        col.a = intensity;
+        mkr.colors.push_back(col);
+    
+        pnt.x = r*std::cos(ang2);
+        pnt.y = r*std::sin(ang2);
+        mkr.points.push_back(pnt);
+        col.a = intensity;
+        mkr.colors.push_back(col);
+      }
+
+      for (int it = -N; it < N; it++)
+      {
+        const double ang = it*ang_step + ang_center;
+        const double ang1 = ang - ang_step/2.0;
+        const double ang2 = ang + ang_step/2.0;
+        const double intensity = normal_pdf(ang, ang_center, sig)/pdf_norm;
+        geometry_msgs::Point pnt;
+    
+        pnt.x = r*std::cos(ang1);
+        pnt.y = r*std::sin(ang1);
+        pnt.z = normal_pdf(ang1, ang_center, sig);
+        mkr.points.push_back(pnt);
+        col.a = intensity;
+        mkr.colors.push_back(col);
+    
+        pnt.x = r*std::cos(ang2);
+        pnt.y = r*std::sin(ang2);
+        pnt.z = normal_pdf(ang2, ang_center, sig);
+        mkr.points.push_back(pnt);
+        col.a = intensity;
+        mkr.colors.push_back(col);
+      }
+
+      return mkr;
+    }
+    //}
+
+    /* covariance_vis() method //{ */
+    visualization_msgs::Marker covariance_vis(const vec3_t& mean, const mat3_t& cov, const ros::Time& time, const std_msgs::ColorRGBA& color)
+    {
+      visualization_msgs::Marker mkr;
+      mkr.header.frame_id = m_uav_frame_id;
+      mkr.header.stamp = time;
+      mkr.type = visualization_msgs::Marker::SPHERE;
+      mkr.color = color;
+      mkr.color.a = 0.2;
+    
+      Eigen::EigenSolver<mat3_t> esol(cov);
+      // TODO: check if not complex and complain in that case
+      const vec3_t evals = esol.eigenvalues().real();
+      const mat3_t evecs = esol.eigenvectors().real();
+
+      ROS_INFO_STREAM("[SwarmControl]: Eigenvalues of covariance: " << evals.transpose());
+
+      const quat_t rot(evecs);
+      mkr.pose.position = mrs_lib::geometry::fromEigen(mean);
+      mkr.pose.orientation = mrs_lib::geometry::fromEigen(rot);
+      mkr.scale.x = std::sqrt(evals.x());
+      mkr.scale.y = std::sqrt(evals.y());
+      mkr.scale.z = std::sqrt(evals.z());
+
+      return mkr;
     }
     //}
 
@@ -963,6 +1111,7 @@ namespace difec_ron
     ros::Publisher m_pub_vis_formation;
     ros::Publisher m_pub_vis_p_cs;
     ros::Publisher m_pub_vis_psi_cs;
+    ros::Publisher m_pub_vis_p_c1s;
     ros::Publisher m_pub_vis_u;
     ros::Publisher m_pub_vis_omega;
     ros::Publisher m_pub_vel_ref;
