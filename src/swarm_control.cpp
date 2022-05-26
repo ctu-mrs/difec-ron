@@ -389,12 +389,18 @@ namespace difec_ron
     
         // | --------------------- calculate p_c2 --------------------- |
         const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        const vec3_t p_mdR = m.p - p_dR;
         // convert envelope the circular gaussian distribution with a 3D gaussian
         const auto [p_dRp, C_t] = envelope_circular_gaussian(p_dR, m.sig);
+        // the merged gaussian distrubution around the measurement will have an offset mean
+        const vec3_t mean_offset = p_dRp - p_dR;
+        const vec3_t new_mean = m.p + mean_offset;
         const mat3_t C_c = m.C + C_t;
-        const vec3_t p_mdR = m.p - p_dR;
-        // TODO: proper inverse calculation and checking
-        const vec3_t p_c2 = p_mdR/sqrt(p_mdR.transpose() * C_c.inverse() * p_mdR) * mrs_lib::probit(l) + m.p;
+        // project the merged and offset distribution to a line between p_m and p_dR
+        const auto [mu, sig] = project_gaussian_to_line(new_mean, C_c, p_dR, p_mdR);
+        // calculate the resulting vector that intersects the desired overshoot probability ellipsoid
+        const double len = mu + sig*mrs_lib::probit(l);
+        const vec3_t p_c2 = p_mdR.normalized() * len;
     
         // | --------------------- calculate p_c3 --------------------- |
         const rads_t beta = -std::atan2(m.p.y(), m.p.x());
@@ -628,6 +634,17 @@ namespace difec_ron
       // now rotate the matrix to align it with the original distribution
       const mat3_t C = mrs_lib::geometry::rotateCovariance(C_a, R);
       return {nmean, C};
+    }
+    //}
+
+    /* project_gaussian_to_line() method //{ */
+    std::pair<double, double> project_gaussian_to_line(const vec3_t& mean, const mat3_t& C, const vec3_t& line_orig, const vec3_t& line_dir)
+    {
+      const vec3_t nmean = mean - line_orig;
+      const vec3_t ndir = line_dir.normalized();
+      const double sig = sqrt(ndir.transpose() * C * ndir);
+      const double mu = ndir.transpose() * nmean;
+      return {sig, mu};
     }
     //}
 
