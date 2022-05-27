@@ -695,7 +695,7 @@ namespace difec_ron
       const vec3_t ndir = line_dir.normalized();
       const double sig = sqrt(ndir.transpose() * C * ndir);
       const double mu = ndir.transpose() * nmean;
-      return {sig, mu};
+      return {mu, sig};
     }
     //}
 
