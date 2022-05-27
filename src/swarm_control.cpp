@@ -496,12 +496,16 @@ namespace difec_ron
             p_Ct_vis.id = 8*meas.detected.id + 4;
             p_Ct_vis.ns = "C_t";
             
-            visualization_msgs::Marker p_Cc_vis = covariance_vis(m.p, C_c, now, m_vis_psidc_color);
-            p_Cc_vis.id = 8*meas.detected.id + 5;
+            visualization_msgs::Marker p_Cm_vis = covariance_vis(m.p, m.C, now, m_vis_psidc_color);
+            p_Cm_vis.id = 8*meas.detected.id + 5;
+            p_Cm_vis.ns = "C_m";
+            
+            visualization_msgs::Marker p_Cc_vis = covariance_vis(m.p, C_c, now, m_vis_psidm_color);
+            p_Cc_vis.id = 8*meas.detected.id + 6;
             p_Cc_vis.ns = "C_c";
             
             visualization_msgs::Marker p_c2_vis = vector_vis(p_c2, now, m_vis_p2_color);
-            p_c2_vis.id = 8*meas.detected.id + 6;
+            p_c2_vis.id = 8*meas.detected.id + 7;
             p_c2_vis.ns = "p^c2";
             
             vis.p_c2s.markers.push_back(p_dR_vis);
@@ -509,6 +513,7 @@ namespace difec_ron
             vis.p_c2s.markers.push_back(p_m_vis);
             vis.p_c2s.markers.push_back(p_sig_vis);
             vis.p_c2s.markers.push_back(p_Ct_vis);
+            vis.p_c2s.markers.push_back(p_Cm_vis);
             vis.p_c2s.markers.push_back(p_Cc_vis);
             vis.p_c2s.markers.push_back(p_c2_vis);
           }
@@ -909,6 +914,29 @@ namespace difec_ron
     }
     //}
 
+    // Local function to force the axis to be right handed for 3D.
+    // Taken from https://github.com/ros-visualization/rviz/blob/1f622b8c95b8e188841b5505db2f97394d3e9c6c/src/rviz/default_plugin/covariance_visual.cpp#L100
+    std::pair<vec3_t, mat3_t> make_right_handed(const vec3_t& eigenvalues, const mat3_t& eigenvectors)
+    {
+      // Note that sorting of eigenvalues may end up with left-hand coordinate system.
+      // So here we correctly sort it so that it does end up being right-handed and normalised.
+      const vec3_t c0 = eigenvectors.col(0).normalized();
+      const vec3_t c1 = eigenvectors.col(1).normalized();
+      const vec3_t c2 = eigenvectors.col(2).normalized();
+      const vec3_t cc = c0.cross(c1);
+      if (cc.dot(c2) < 0)
+      {
+        const mat3_t rh_evecs( (mat3_t() << c1, c0, c2).finished() );
+        const vec3_t rh_evals(eigenvalues.y(), eigenvalues.x(), eigenvalues.z());
+        return {rh_evals, rh_evecs};
+      }
+      else
+      {
+        const mat3_t rh_evecs( (mat3_t() << c0, c1, c2).finished() );
+        return {eigenvalues, rh_evecs};
+      }
+    }
+
     /* covariance_vis() method //{ */
     visualization_msgs::Marker covariance_vis(const vec3_t& mean, const mat3_t& cov, const ros::Time& time, const std_msgs::ColorRGBA& color)
     {
@@ -919,19 +947,26 @@ namespace difec_ron
       mkr.color = color;
       mkr.color.a = 0.2;
     
-      Eigen::EigenSolver<mat3_t> esol(cov);
-      // TODO: check if not complex and complain in that case
-      const vec3_t evals = esol.eigenvalues().real();
-      const mat3_t evecs = esol.eigenvectors().real();
+      Eigen::SelfAdjointEigenSolver<mat3_t> esol(cov);
+      // check success of the solver
+      if (esol.info() != Eigen::Success)
+      {
+        ROS_WARN_THROTTLE(1, "Failed to compute eigen vectors/values for position. Is the covariance matrix correct?");
+        return mkr;
+      }
 
-      ROS_INFO_STREAM("[SwarmControl]: Eigenvalues of covariance: " << evals.transpose());
+      const vec3_t evals_raw = esol.eigenvalues().real();
+      const mat3_t evecs_raw = esol.eigenvectors().real();
+      const auto [evals, evecs] = make_right_handed(evals_raw, evecs_raw);
 
       const quat_t rot(evecs);
       mkr.pose.position = mrs_lib::geometry::fromEigen(mean);
       mkr.pose.orientation = mrs_lib::geometry::fromEigen(rot);
-      mkr.scale.x = std::sqrt(evals.x());
-      mkr.scale.y = std::sqrt(evals.y());
-      mkr.scale.z = std::sqrt(evals.z());
+      // according to the Rviz implementation, this should be doubled for some reason...
+      // https://github.com/ros-visualization/rviz/blob/1f622b8c95b8e188841b5505db2f97394d3e9c6c/src/rviz/default_plugin/covariance_visual.cpp#L133
+      mkr.scale.x = 2.0 * std::sqrt(evals.x());
+      mkr.scale.y = 2.0 * std::sqrt(evals.y());
+      mkr.scale.z = 2.0 * std::sqrt(evals.z());
 
       return mkr;
     }
