@@ -391,7 +391,7 @@ namespace difec_ron
         const rads_t psi_c = m.sig * mrs_lib::signum(psi_md) * mrs_lib::probit(l) + m.psi;
     
         // | --------------------- calculate p_c2 --------------------- |
-        const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        const vec3_t p_dR = R_dpsi*d.p;
         // convert envelope the circular gaussian distribution with a 3D gaussian
         const auto [p_dRp, C_t] = envelope_circular_gaussian(p_dR, m.sig);
         const vec3_t p_mdRp = m.p - p_dRp;
@@ -563,7 +563,7 @@ namespace difec_ron
         const vec3_t u_1 = p_md;
     
         // | --------------------- calculate u_2 ---------------------- |
-        const vec3_t p_dR = R_dpsi.transpose()*d.p;
+        const vec3_t p_dR = R_dpsi*d.p;
         const vec3_t u_2 = m.p - p_dR;
     
         // | -------------------- calculate psi_1 --------------------- |
