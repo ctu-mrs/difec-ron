@@ -859,7 +859,7 @@ namespace difec_ron
       mkr.scale.x = 0.05; // line width
       std_msgs::ColorRGBA col = color;
     
-      const double r = mean.norm();
+      const double r = mean.head<2>().norm();
       const double ang_center = std::atan2(mean.y(), mean.x());
       const double pdf_norm = normal_pdf(0.0, 0.0, sig);
     
@@ -876,35 +876,28 @@ namespace difec_ron
     
         pnt.x = r*std::cos(ang1);
         pnt.y = r*std::sin(ang1);
+        pnt.z = mean.z();
         mkr.points.push_back(pnt);
         col.a = intensity;
         mkr.colors.push_back(col);
     
         pnt.x = r*std::cos(ang2);
         pnt.y = r*std::sin(ang2);
+        pnt.z = mean.z();
         mkr.points.push_back(pnt);
         col.a = intensity;
         mkr.colors.push_back(col);
-      }
-
-      for (int it = -N; it < N; it++)
-      {
-        const double ang = it*ang_step + ang_center;
-        const double ang1 = ang - ang_step/2.0;
-        const double ang2 = ang + ang_step/2.0;
-        const double intensity = normal_pdf(ang, ang_center, sig)/pdf_norm;
-        geometry_msgs::Point pnt;
     
         pnt.x = r*std::cos(ang1);
         pnt.y = r*std::sin(ang1);
-        pnt.z = normal_pdf(ang1, ang_center, sig);
+        pnt.z = mean.z() + normal_pdf(ang1, ang_center, sig)/pdf_norm;
         mkr.points.push_back(pnt);
         col.a = intensity;
         mkr.colors.push_back(col);
     
         pnt.x = r*std::cos(ang2);
         pnt.y = r*std::sin(ang2);
-        pnt.z = normal_pdf(ang2, ang_center, sig);
+        pnt.z = mean.z() + normal_pdf(ang2, ang_center, sig)/pdf_norm;
         mkr.points.push_back(pnt);
         col.a = intensity;
         mkr.colors.push_back(col);
