@@ -1,3 +1,4 @@
 uav_name, uvdar_id, position_x, position_y, position_z, heading
-uav1,     0,        0.0,        0.0,        0.0,        0.0
-uav2,     1,        0.0,        -8.0,       0.0,        0.0
+uav1,     0,        5.0,        0.0,        0.0,        0.0
+uav2,     1,        0.0,        -3.0,       0.0,        0.0
+uav3,     2,        -5.0,       3.0,        0.0,        0.0

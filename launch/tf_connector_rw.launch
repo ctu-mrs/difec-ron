@@ -15,7 +15,7 @@
 
   <node pkg="nodelet" type="nodelet" name="swarm_tf_connector" args="$(arg nodelet) mrs_uav_odometry/TFConnectorDummy $(arg nodelet_manager)" output="screen" launch-prefix="$(arg launch_prefix)">
 
-    <rosparam file="$(find difec_ron)/config/tf_connector.yaml" />
+    <rosparam file="$(find difec_ron)/config/tf_connector_rw.yaml" />
 
     <!-- Load a user param file -->
     <rosparam if="$(eval not arg('custom_config') == '')" file="$(arg custom_config)" />

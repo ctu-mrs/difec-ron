@@ -955,8 +955,8 @@ namespace difec_ron
         return mkr;
       }
 
-      const vec3_t evals_raw = esol.eigenvalues().real();
-      const mat3_t evecs_raw = esol.eigenvectors().real();
+      const vec3_t evals_raw = esol.eigenvalues();
+      const mat3_t evecs_raw = esol.eigenvectors();
       const auto [evals, evecs] = make_right_handed(evals_raw, evecs_raw);
 
       const quat_t rot(evecs);

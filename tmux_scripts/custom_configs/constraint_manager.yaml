@@ -5,7 +5,6 @@ slow:
     acceleration: 2.0
 
 constraint_management:
-
   # those gains will be used automatically when a localization mode switches
   # and the current gains are not in the allowed list (next paragraphs)
   fallback_constraints:
