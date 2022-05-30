@@ -55,7 +55,7 @@ input=(
 '
   'uvdar_kalman' 'waitForControl; roslaunch uvdar_core uvdar_kalman.launch use_three_cameras:=true output_frame:='"$UAV_NAME"'/stable_origin
 '
-  'difec_ron' 'waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false formation_file:='$(rospack find difec_ron)'/tmux_scripts/three_drone_experiment/custom_configs/three_drone_formation.csv
+  'difec_ron' 'waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false formation_file:='$(rospack find difec_ron)'/tmux_scripts/three_drone_experiment/custom_configs/formation_a.csv
 '
   'mavros_diag' 'waitForRos; rostopic echo /'"$UAV_NAME"'/mavros_interface/diagnostics
 '
