@@ -70,9 +70,9 @@ windows:
   - difec_ron:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
-        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
-        - export UAV_NAME=uav3; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
+        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false formation_file:=$(rospack find difec_ron)/tmux_scripts/custom_configs/formation_a.csv
+        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false formation_file:=$(rospack find difec_ron)/tmux_scripts/custom_configs/formation_a.csv
+        - export UAV_NAME=uav3; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false formation_file:=$(rospack find difec_ron)/tmux_scripts/custom_configs/formation_a.csv
   - slow_down:
       layout: even-vertical
       panes:
