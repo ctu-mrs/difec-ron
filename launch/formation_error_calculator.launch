@@ -1,0 +1,8 @@
+<launch>
+  <group ns="error_calculator">
+    <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > 
+      <rosparam param="uavs"> ["uav11", "uav12", "uav14"] </rosparam>
+      <rosparam param="common_frame" type="string" value="global_gps"/>
+    </node>
+  </group>
+</launch>

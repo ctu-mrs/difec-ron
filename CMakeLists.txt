@@ -79,8 +79,8 @@ target_link_libraries(FormationControl
   ${OpenCV_LIBRARIES}
 )
 
-add_executable(formation_error_calculator src/formation_error_calculator.cpp)
-add_dependencies(formation_error_calculator ${catkin_LIBRARIES})
-target_link_libraries(formation_error_calculator
+add_executable(FormationErrorCalculator src/formation_error_calculator.cpp)
+add_dependencies(FormationErrorCalculator ${catkin_LIBRARIES})
+target_link_libraries(FormationErrorCalculator
   ${catkin_LIBRARIES}
   )
