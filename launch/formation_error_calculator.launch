@@ -1,8 +1,13 @@
 <launch>
+  <arg name="local_username" default="$(optenv USER)"/>
   <group ns="error_calculator">
-    <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > 
-      <rosparam param="uavs"> ["uav11", "uav12", "uav14"] </rosparam>
-      <rosparam param="common_frame" type="string" value="global_gps"/>
+    <!-- <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > --> 
+    <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" launch-prefix="debug_roslaunch"> 
+      <rosparam param="uav_list" subst_value="true"> ["uav11", "uav12", "uav14"] </rosparam>
+      <param name="common_frame" type="string" value="global_gps"/>
+      <param name="formation_controller_node" type="string" value="swarm_control"/>
+      <param name="original_username" type="string" value="mrs"/>
+      <param name="local_username" type="string" value="$(arg local_username)"/>
     </node>
   </group>
 </launch>
