@@ -1,11 +1,11 @@
 <launch>
 
-  <node pkg="multireconfigure" type="multireconfigure.py" name="swarm_multireconfigure" output="screen" >
+  <node pkg="multireconfigure" type="multireconfigure.py" name="formation_multireconfigure" output="screen" >
 
     <rosparam param="dynparam_topics">[
-      "/uav1/swarm_control",
-      "/uav2/swarm_control",
-      "/uav3/swarm_control",
+      "/uav1/formation_control",
+      "/uav2/formation_control",
+      "/uav3/formation_control",
       ]
     </rosparam>
 

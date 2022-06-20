@@ -69,12 +69,12 @@ include_directories(include
   ${Eigen_INCLUDE_DIRS}
 )
 
-add_library(SwarmControl src/swarm_control.cpp)
-add_dependencies(SwarmControl
+add_library(FormationControl src/formation_control.cpp)
+add_dependencies(FormationControl
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
 )
-target_link_libraries(SwarmControl
+target_link_libraries(FormationControl
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )

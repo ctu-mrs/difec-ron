@@ -20,27 +20,27 @@
 
   <!-- nodelet-related arguments -->
   <arg name="standalone" default="true" />
-  <arg name="manager" default="swarm_nodelet_manager" />
-  <arg name="swarm_nodelet" value="difec_ron/SwarmControl" />
-  <arg unless="$(arg standalone)" name="nodelet_load" value="load $(arg swarm_nodelet) $(arg manager)"/>
-  <arg     if="$(arg standalone)" name="nodelet_load" value="standalone $(arg swarm_nodelet)"/>
+  <arg name="manager" default="formation_nodelet_manager" />
+  <arg name="formation_nodelet" value="difec_ron/FormationControl" />
+  <arg unless="$(arg standalone)" name="nodelet_load" value="load $(arg formation_nodelet) $(arg manager)"/>
+  <arg     if="$(arg standalone)" name="nodelet_load" value="standalone $(arg formation_nodelet)"/>
 
   <arg unless="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/filteredPoses"/>
   <arg     if="$(arg use_raw_measurements)" name="detections_topic" value="uvdar/mergedMeasurements"/>
 
-  <arg name="config_file" default="$(find difec_ron)/config/swarm_control.yaml"/>
+  <arg name="config_file" default="$(find difec_ron)/config/formation_control.yaml"/>
   <arg name="formation_file" default="$(find difec_ron)/config/formation.csv"/>
 
   <group ns="$(arg uav_name)">
 
-    <node pkg="nodelet" type="nodelet" name="swarm_control" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
+    <node pkg="nodelet" type="nodelet" name="formation_control" args="$(arg nodelet_load)" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)" respawn="$(arg respawn)" >
 
       <rosparam file="$(arg config_file)" />
       <param name="formation/filename" value="$(arg formation_file)" />
 
       <param name="uav_name" value="$(arg uav_name)" />
-      <param name="world_frame_id" value="$(arg uav_name)/fcu" />
-      <param name="uav_frame_id" value="$(arg uav_name)/fcu" />
+      <param name="world_frame_id" value="$(arg uav_name)/gps_origin" />
+      <param name="uav_frame_id" value="$(arg uav_name)/fcu_untilted" />
     
       <!-- Subscribers -->
       <remap from="~detections_in" to="$(arg detections_topic)" />

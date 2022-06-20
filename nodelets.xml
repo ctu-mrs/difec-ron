@@ -1,5 +1,5 @@
-<library path="lib/libSwarmControl">
-  <class name="difec_ron/SwarmControl" type="difec_ron::SwarmControl" base_class_type="nodelet::Nodelet">
-    <description>Nodelet for controlling a swarm using the DiFEC-RON control rule.</description>
+<library path="lib/libFormationControl">
+  <class name="difec_ron/FormationControl" type="difec_ron::FormationControl" base_class_type="nodelet::Nodelet">
+    <description>Nodelet for controlling a formation using the DiFEC-RON control rule.</description>
   </class>
 </library>
