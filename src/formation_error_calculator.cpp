@@ -16,7 +16,7 @@ namespace difec_ron {
 
   struct agent_t
   {
-    /* uint64_t id; // ID of this agent */
+    uint64_t id; // ID of this agent
     std::string uav_name;
     pose_t pose; // the desired pose in the formation relative to the current agent
   };
@@ -43,8 +43,10 @@ namespace difec_ron {
           return;
         }
 
+        int i = 0;
         for (auto uav_name : _uav_list_){
           agent_t agent_curr;
+          agent_curr.id = i++;
           agent_curr.uav_name = uav_name;
           agent_curr.pose = {e::Vector3d(0,0,0),mrs_lib::geometry::sradians(0)};
           formation_curr_.push_back(agent_curr);
@@ -84,10 +86,11 @@ namespace difec_ron {
           const mat3_t tf_rot = tf.rotation();
           const rads_t tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
           const vec3_t p = tf*e::Vector3d(0,0,0);
+          /* const vec3_t p = tf.translation(); */
           formation_curr_.at(i).pose = {p,tf_hdg};
           formation_curr_.at(i).uav_name = uav_name;
 
-          /* ROS_INFO_STREAM("[FormationControl]: For " << uav_name << " the pose is: p: " << p.transpose() << ", psi: " << tf_hdg); */
+          /* ROS_INFO_STREAM("[FormationControl]: For " << uav_name << "(" << i << ") the pose is: p: " << p.transpose() << ", psi: " << tf_hdg); */
 
           i++;
         }
@@ -113,6 +116,7 @@ namespace difec_ron {
             if (opt.has_value()){
               formation_desired_ = opt.value();
               last_formation_file_ = filename;
+              /* ROS_INFO_STREAM("[FormationControl]: des. relative"); */ 
               formation_desired_relative_ = formationRelative(formation_desired_);
             }
             else {
@@ -143,11 +147,14 @@ namespace difec_ron {
       std::vector<pose_t> formationRelative(std::vector<agent_t> formation_absolute){
         std::vector<pose_t> output;
         for (int i = 0; i<(int)(formation_absolute.size()); i++){
+          /* ROS_INFO_STREAM("[FormationControl]: i:" << i << ": " << formation_absolute.at(i).pose.p.transpose() << ", - " << formation_absolute.at(i).pose.psi); */ 
           const mat3_t R_psiiT( anax_t(-(formation_absolute.at(i).pose.psi.value()), vec3_t::UnitZ()) );
           for (int j = 0; j<(int)(formation_absolute.size()); j++){
+          /* ROS_INFO_STREAM("[FormationControl]: j:" << i << ": " << formation_absolute.at(j).pose.p.transpose() << ", - " << formation_absolute.at(j).pose.psi); */ 
             if (i != j){
               auto p_diff = R_psiiT*(formation_absolute.at(j).pose.p-formation_absolute.at(i).pose.p);
               auto psi_diff = formation_absolute.at(j).pose.psi-formation_absolute.at(i).pose.psi;
+              /* ROS_INFO_STREAM("[FormationControl]: diff:" << p_diff.transpose() << ", - " << psi_diff); */ 
               pose_t pose_diff = {p_diff, psi_diff};
               output.push_back(pose_diff);
             }
@@ -163,11 +170,16 @@ namespace difec_ron {
         for ( int i = 0; i < (int)(curr.size()); i++){
           auto curr_p_diff = desired.at(i).p - curr.at(i).p;
           auto curr_psi_diff = desired.at(i).psi - curr.at(i).psi;
+      /* ROS_INFO_STREAM("[FormationControl]: des: \n" << desired.at(i).p.transpose() << ", " << desired.at(i).psi); */ 
+      /* ROS_INFO_STREAM("[FormationControl]: cur: \n" << curr.at(i).p.transpose() << ", " << curr.at(i).psi); */ 
           diff_vector(i*4 + 0) = curr_p_diff.x();
           diff_vector(i*4 + 1) = curr_p_diff.y();
           diff_vector(i*4 + 2) = curr_p_diff.z();
           diff_vector(i*4 + 3) = curr_psi_diff;
         }
+
+      /* ROS_INFO_STREAM("[FormationControl]: Partial errors: \n" << diff_vector.transpose()); */ 
+
 
         return diff_vector.norm();
       }
@@ -210,6 +222,7 @@ namespace difec_ron {
         ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name);
         try
         {
+          const uint64_t id = std::stoul(st.at(it++));
           // try to parse the expected values
           const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
           const rads_t heading = std::stod(st.at(it++));
@@ -217,7 +230,7 @@ namespace difec_ron {
           // create the agent and add it to the formation
           const vec3_t position(coords[0], coords[1], coords[2]);
           const pose_t agent_pose = {position, heading};
-          const agent_t agent = {uav_name, agent_pose};
+          const agent_t agent = {id, uav_name, agent_pose};
           formation.emplace_back(agent);
         }
         catch (const std::exception& e)
