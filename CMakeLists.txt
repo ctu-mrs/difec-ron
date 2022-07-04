@@ -53,6 +53,14 @@ generate_dynamic_reconfigure_options(
   config/FormationControlParams.cfg
 )
 
+add_message_files(DIRECTORY msg FILES
+  FormationState.msg
+)
+
+generate_messages(DEPENDENCIES
+  std_msgs
+)
+
 catkin_package(
   CATKIN_DEPENDS message_runtime mrs_lib # roscpp rospy std_msgs
 )

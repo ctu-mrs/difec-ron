@@ -1,5 +1,5 @@
 #include "main.h"
-#include <std_msgs/Float64.h>
+#include <difec_ron/FormationState.h>
 #include <dynamic_reconfigure/Config.h>
 
 
@@ -65,7 +65,7 @@ namespace difec_ron {
         m_transformer = mrs_lib::Transformer(nh,"FormationErrorCalculator");
         m_transformer.retryLookupNewest(true);
 
-        pub_formation_error_ = nh.advertise<std_msgs::Float64>("formation_error", 1);
+        pub_formation_error_ = nh.advertise<difec_ron::FormationState>("formation_error", 1);
 
         timer_main_ = nh.createTimer(ros::Rate(20.0), &FormationErrorCalculator::MainTimer, this, false);
       }
@@ -100,6 +100,7 @@ namespace difec_ron {
 
         const ros::WallDuration timeout(1.0/10.0);
         const auto msg_ptr = m_sh_formation_control_updates.waitForNew(timeout);
+
         if (msg_ptr){
 
           std::string filename = msg_ptr->strs[0].value;
@@ -124,8 +125,15 @@ namespace difec_ron {
               return;
             }
           }
+
+
+          restraining_factor_ = msg_ptr->doubles[0].value;
+          proportional_constant_ = msg_ptr->doubles[1].value;
+
+          restraining_enabled_ = msg_ptr->bools[1].value;
+          control_enabled_ = msg_ptr->bools[0].value;
         }
-        else {
+        else if (formation_desired_.size() == 0) {
           return;
         }
 
@@ -134,10 +142,17 @@ namespace difec_ron {
           return;
         }
 
-        double error_curr = formationError(formation_curr_relative_, formation_desired_relative_);
+        auto [formation_error, position_error, orientation_error] = formationError(formation_curr_relative_, formation_desired_relative_);
 
-        std_msgs::Float64 msg_pub;
-        msg_pub.data = error_curr;
+        difec_ron::FormationState msg_pub;
+        msg_pub.header.stamp = now;
+        msg_pub.formation_error.data = formation_error;
+        msg_pub.position_error.data = position_error;
+        msg_pub.orientation_error.data = orientation_error;
+        msg_pub.proportional_kef.data = proportional_constant_;
+        msg_pub.restraining_l.data = restraining_factor_;
+        msg_pub.restraining_enabled.data = restraining_enabled_;
+        msg_pub.control_enabled.data = control_enabled_;
         pub_formation_error_.publish(msg_pub);
 
     }
@@ -164,24 +179,32 @@ namespace difec_ron {
         return output;
       }
 
-      double formationError(std::vector<pose_t> curr, std::vector<pose_t> desired){
-        e::VectorXd diff_vector(curr.size()*4);
+      std::tuple<double,double,double> formationError(std::vector<pose_t> curr, std::vector<pose_t> desired){
+        e::VectorXd formation_diff_vector(curr.size()*4);
+        e::VectorXd position_diff_vector(curr.size()*3);
+        e::VectorXd orientation_diff_vector(curr.size()*1);
 
         for ( int i = 0; i < (int)(curr.size()); i++){
           auto curr_p_diff = desired.at(i).p - curr.at(i).p;
           auto curr_psi_diff = desired.at(i).psi - curr.at(i).psi;
       /* ROS_INFO_STREAM("[FormationControl]: des: \n" << desired.at(i).p.transpose() << ", " << desired.at(i).psi); */ 
       /* ROS_INFO_STREAM("[FormationControl]: cur: \n" << curr.at(i).p.transpose() << ", " << curr.at(i).psi); */ 
-          diff_vector(i*4 + 0) = curr_p_diff.x();
-          diff_vector(i*4 + 1) = curr_p_diff.y();
-          diff_vector(i*4 + 2) = curr_p_diff.z();
-          diff_vector(i*4 + 3) = curr_psi_diff;
+          formation_diff_vector(i*4 + 0) = curr_p_diff.x();
+          formation_diff_vector(i*4 + 1) = curr_p_diff.y();
+          formation_diff_vector(i*4 + 2) = curr_p_diff.z();
+          formation_diff_vector(i*4 + 3) = curr_psi_diff;
+
+          position_diff_vector(i*3 + 0) = curr_p_diff.x();
+          position_diff_vector(i*3 + 1) = curr_p_diff.y();
+          position_diff_vector(i*3 + 2) = curr_p_diff.z();
+
+          orientation_diff_vector(i*1 + 0) = curr_psi_diff;
         }
 
       /* ROS_INFO_STREAM("[FormationControl]: Partial errors: \n" << diff_vector.transpose()); */ 
 
 
-        return diff_vector.norm();
+        return {formation_diff_vector.norm(),position_diff_vector.norm(),orientation_diff_vector.norm()};
       }
 
       std::optional<std::vector<agent_t>> load_formation(const std::string& filename)
@@ -262,13 +285,16 @@ namespace difec_ron {
       std::vector<pose_t> formation_curr_relative_;
 
       mrs_lib::SubscribeHandler<dynamic_reconfigure::Config> m_sh_formation_control_updates;
-      double overshoot_probability_;
-      double proportional_constant_;
+      /* double overshoot_probability_; */
+      /* double proportional_constant_; */
       bool control_enables_ = false;
       bool use_noise_ = false;
       std::string last_formation_file_;
       std::vector<agent_t> formation_desired_;
       std::vector<pose_t> formation_desired_relative_;
+
+      double restraining_factor_, proportional_constant_;
+      bool restraining_enabled_, control_enabled_;
 
   };
 }
