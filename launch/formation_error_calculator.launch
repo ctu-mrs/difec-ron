@@ -9,6 +9,9 @@
   <arg unless="$(arg profile)" name="launch_prefix_profile" value=""/>
   <arg     if="$(arg profile)" name="launch_prefix_profile" value="valgrind --tool=callgrind --callgrind-out-file='callgrind.out.%p'"/>
 
+
+  <arg name="process_rate" value="20.0"/>
+
   <group ns="error_calculator">
     <!-- <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > --> 
     <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" launch-prefix="$(arg launch_prefix) $(arg launch_prefix_profile)"> 
@@ -17,6 +20,7 @@
       <param name="formation_controller_node" type="string" value="swarm_control"/>
       <param name="original_username" type="string" value="mrs"/>
       <param name="local_username" type="string" value="$(arg local_username)"/>
+      <param name="process_rate" type="double" value="$(arg process_rate)"/>
     </node>
   </group>
 </launch>

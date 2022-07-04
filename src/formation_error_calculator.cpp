@@ -37,6 +37,9 @@ namespace difec_ron {
         param_loader.loadParam("local_username", _local_username_);
 
         param_loader.loadParam("uav_list", _uav_list_, _uav_list_);
+
+        param_loader.loadParam("process_rate", _process_rate_, double(20.0));
+
         if (_uav_list_.empty()) {
           ROS_ERROR("[FormationErrorCalculator]: No uav names were supplied. Returning.");
           ros::shutdown();
@@ -67,7 +70,7 @@ namespace difec_ron {
 
         pub_formation_error_ = nh.advertise<difec_ron::FormationState>("formation_error", 1);
 
-        timer_main_ = nh.createTimer(ros::Rate(20.0), &FormationErrorCalculator::MainTimer, this, false);
+        timer_main_ = nh.createTimer(ros::Rate(_process_rate_), &FormationErrorCalculator::MainTimer, this, false);
       }
 
       void MainTimer([[maybe_unused]] const ros::TimerEvent& te)
@@ -273,6 +276,8 @@ namespace difec_ron {
       mrs_lib::Transformer m_transformer;
       ros::Publisher pub_formation_error_;
       ros::Timer timer_main_;
+
+      double _process_rate_;
 
       std::string _common_frame_;
       std::vector<std::string> _uav_list_;
