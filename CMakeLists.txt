@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_sensor_msgs
   tf2_eigen
   tf2_geometry_msgs
+  eigen_conversions
   visualization_msgs
   mrs_lib
   nodelet

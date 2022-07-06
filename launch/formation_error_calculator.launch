@@ -11,6 +11,7 @@
 
 
   <arg name="process_rate" value="20.0"/>
+  <arg name="formation_file_location"/>
 
   <group ns="error_calculator">
     <!-- <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > --> 
@@ -18,8 +19,8 @@
       <rosparam param="uav_list" subst_value="true"> ["uav11", "uav12", "uav14"] </rosparam>
       <param name="common_frame" type="string" value="global_gps"/>
       <param name="formation_controller_node" type="string" value="swarm_control"/>
-      <param name="original_username" type="string" value="mrs"/>
-      <param name="local_username" type="string" value="$(arg local_username)"/>
+      <param name="formation_file_location" type="string" value="$(arg formation_file_location)"/>
+      <!-- <param name="local_username" type="string" value="$(arg local_username)"/> -->
       <param name="process_rate" type="double" value="$(arg process_rate)"/>
     </node>
   </group>

@@ -1,6 +1,9 @@
 #include "main.h"
 #include <difec_ron/FormationState.h>
 #include <dynamic_reconfigure/Config.h>
+#include <mrs_msgs/UavState.h>
+#include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
+#include <eigen_conversions/eigen_msg.h>
 
 
 namespace e = Eigen;
@@ -33,8 +36,9 @@ namespace difec_ron {
 
         param_loader.loadParam("common_frame", _common_frame_, std::string("global_gps"));
 
-        param_loader.loadParam("original_username", _original_username_, std::string("mrs"));
-        param_loader.loadParam("local_username", _local_username_);
+        /* param_loader.loadParam("original_username", _original_username_, std::string("mrs")); */
+        /* param_loader.loadParam("local_username", _local_username_); */
+        param_loader.loadParam("formation_file_location", _formation_file_location_);
 
         param_loader.loadParam("uav_list", _uav_list_, _uav_list_);
 
@@ -64,6 +68,23 @@ namespace difec_ron {
         mrs_lib::construct_object(m_sh_formation_control_updates, shopts, "/"+_uav_list_.at(0)+"/"+_formation_controler_node_+"/parameter_updates");
 
 
+        acceleration_pos_ = e::VectorXd(_uav_list_.size());
+        acceleration_rot_ = e::VectorXd(_uav_list_.size());
+        velocity_ang_ = e::VectorXd(_uav_list_.size());
+        int u = 0;
+        for (auto uav : _uav_list_){
+          m_sh_odometry_updates.push_back(mrs_lib::SubscribeHandler<mrs_msgs::UavState>(shopts, "/"+uav+"/odometry/uav_state"));
+          acceleration_pos_(u) =  std::nan("1");
+          acceleration_rot_(u) =  std::nan("1");
+          velocity_ang_(u) =  std::nan("1");
+
+          m_sh_relative_localization.push_back(mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>(shopts, "/"+uav+"/uvdar/filteredPoses"));
+          u++;
+        }
+        
+        connection_matrix_ = e::MatrixXd::Zero(_uav_list_.size(),_uav_list_.size());
+
+
 
         m_transformer = mrs_lib::Transformer(nh,"FormationErrorCalculator");
         m_transformer.retryLookupNewest(true);
@@ -76,6 +97,8 @@ namespace difec_ron {
       void MainTimer([[maybe_unused]] const ros::TimerEvent& te)
       {
         ros::Time now = ros::Time::now();
+        const ros::WallDuration timeout(1.0/10.0);
+
         int i = 0;
         for (auto uav_name : _uav_list_){
           const auto tf_opt = m_transformer.getTransform(uav_name+"/fcu", _common_frame_, now);
@@ -98,22 +121,52 @@ namespace difec_ron {
           i++;
         }
 
+        int u = 0;
+        for (auto uav_name : _uav_list_){
+          const auto msg_ptr = m_sh_odometry_updates.at(u).waitForNew(timeout);
+          if (msg_ptr){
+            e::Vector3d accel_lin;
+            e::Vector3d accel_rot;
+            e::Vector3d veloc_ang;
+            tf::vectorMsgToEigen(msg_ptr->acceleration.linear,accel_lin);
+            tf::vectorMsgToEigen(msg_ptr->acceleration.angular,accel_rot);
+            tf::vectorMsgToEigen(msg_ptr->velocity.angular,veloc_ang);
+            acceleration_pos_(u) = accel_lin.norm();
+            /* ROS_INFO_STREAM("[FormationControl]: " << accel_rot.transpose()); */
+            acceleration_rot_(u) = e::AngleAxisd(
+                e::AngleAxisd(accel_rot.x(), e::Vector3d::UnitX())
+              * e::AngleAxisd(accel_rot.y(), e::Vector3d::UnitY())
+              * e::AngleAxisd(accel_rot.z(), e::Vector3d::UnitZ())).angle();
+            velocity_ang_(u) = e::AngleAxisd(
+                e::AngleAxisd(veloc_ang.x(), e::Vector3d::UnitX())
+              * e::AngleAxisd(veloc_ang.y(), e::Vector3d::UnitY())
+              * e::AngleAxisd(veloc_ang.z(), e::Vector3d::UnitZ())).angle();
+          }
+          else if (isnan(acceleration_pos_(u)) || isnan(acceleration_rot_(u))) {
+            ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not retrieve acceleration of " << uav_name << ", nor was it retrieved before. Returning.");
+            return;
+          }
+          u++;
+        }
+
         formation_curr_relative_ = formationRelative(formation_curr_);
 
 
-        const ros::WallDuration timeout(1.0/10.0);
         const auto msg_ptr = m_sh_formation_control_updates.waitForNew(timeout);
 
+        double fiedler;
         if (msg_ptr){
 
-          std::string filename = msg_ptr->strs[0].value;
-          size_t index = 0;
-          index = filename.find(_original_username_, index);
-          if (index == std::string::npos){
-            ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not replace username in file " << msg_ptr->strs[0].value << ". Returning.");
-            return;
-          };
-          filename.replace(index, _original_username_.length(), _local_username_);
+          std::string orig_filename = msg_ptr->strs[0].value;
+          std::string base_filename = orig_filename.substr(orig_filename.find_last_of("/\\") + 1);
+          /* size_t index = 0; */
+          /* index = filename.find(_original_username_, index); */
+          /* if (index == std::string::npos){ */
+          /*   ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not replace username in file " << msg_ptr->strs[0].value << ". Returning."); */
+          /*   return; */
+          /* }; */
+          /* filename.replace(index, _original_username_.length(), _local_username_); */
+          std::string filename = _formation_file_location_+"/"+base_filename;
 
           if (filename != last_formation_file_){
             auto opt = load_formation(filename);
@@ -129,6 +182,40 @@ namespace difec_ron {
             }
           }
 
+          connection_matrix_ = e::MatrixXd::Zero(_uav_list_.size(),_uav_list_.size());
+          int v = 0;
+          for (auto uav_name : _uav_list_){
+            const auto msg_ptr = m_sh_relative_localization.at(v).waitForNew(timeout);
+            if (msg_ptr){
+              for (const auto rl : msg_ptr->poses){
+                /* ROS_INFO_STREAM("[FormationControl]: v: " << v); */ 
+                /* ROS_INFO_STREAM("[FormationControl]: uav_name " << uav_name); */ 
+                int index = getUavIndexFromID(formation_desired_,rl.id);
+                if ((index >= 0) && (index != v)){
+                  connection_matrix_(v,index) = 1;
+                }
+              }
+            }
+            v++;
+        }
+
+          //Get the Fiedler eigenvalue
+          e::VectorXd eigs = connection_matrix_.eigenvalues().real();
+          ROS_INFO_STREAM("[FormationControl]: eigs: " << eigs.transpose()); 
+          double smallest = 999999.0;
+          fiedler = 999999.0; //whatever
+          for (int i = 0; i< (int)(_uav_list_.size()); i++){
+            double candidate = eigs(i);
+            if (candidate < smallest){
+              fiedler = smallest;
+              smallest = candidate;
+            }
+            else if ((candidate != smallest) && (candidate < fiedler)){
+              fiedler = candidate;
+            }
+          }
+          connected_ = (fiedler > 0.0);
+
 
           restraining_factor_ = msg_ptr->doubles[0].value;
           proportional_constant_ = msg_ptr->doubles[1].value;
@@ -140,6 +227,7 @@ namespace difec_ron {
           return;
         }
 
+
         if (formation_curr_.size() != formation_desired_.size()){
           ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Desired formation of size " << formation_desired_.size() << " does not match the current formation of size " << formation_curr_.size() << ". Returning.");
           return;
@@ -149,6 +237,7 @@ namespace difec_ron {
 
         difec_ron::FormationState msg_pub;
         msg_pub.header.stamp = now;
+        msg_pub.formation_file.data = last_formation_file_;
         msg_pub.formation_error.data = formation_error;
         msg_pub.position_error.data = position_error;
         msg_pub.orientation_error.data = orientation_error;
@@ -156,6 +245,11 @@ namespace difec_ron {
         msg_pub.restraining_l.data = restraining_factor_;
         msg_pub.restraining_enabled.data = restraining_enabled_;
         msg_pub.control_enabled.data = control_enabled_;
+        msg_pub.velocity_angular.data = velocity_ang_.norm();
+        msg_pub.acceleration_position.data = acceleration_pos_.norm();
+        msg_pub.acceleration_rotation.data = acceleration_rot_.norm();
+        ROS_INFO_STREAM("[FormationControl]: conn. matrix: \n" << connection_matrix_); 
+        msg_pub.graph_connected.data = connected_; //one is True
         pub_formation_error_.publish(msg_pub);
 
     }
@@ -208,6 +302,31 @@ namespace difec_ron {
 
 
         return {formation_diff_vector.norm(),position_diff_vector.norm(),orientation_diff_vector.norm()};
+      }
+
+      int getUavIndexFromID(std::vector<agent_t> formation, int ID){
+        int result = -1;
+
+        for (auto ag : formation){
+          /* ROS_INFO_STREAM("[FormationControl]: ag.id: " << ag.id); */ 
+          /* ROS_INFO_STREAM("[FormationControl]: ag.uav_name: " << ag.uav_name); */ 
+          if (ag.id == (uint64_t)ID){
+            int j=0;
+            for (auto uav : _uav_list_){
+              if (ag.uav_name == uav){
+                result = j;
+                break;
+              }
+              j++;
+            }
+
+            if (result != -1){
+              break;
+            }
+          }
+        }
+
+        return result;
       }
 
       std::optional<std::vector<agent_t>> load_formation(const std::string& filename)
@@ -283,15 +402,15 @@ namespace difec_ron {
       std::vector<std::string> _uav_list_;
       std::string _formation_controler_node_;
 
-      std::string _original_username_;
-      std::string _local_username_;
+      /* std::string _original_username_; */
+      std::string _formation_file_location_;
 
       std::vector<agent_t> formation_curr_;
       std::vector<pose_t> formation_curr_relative_;
 
       mrs_lib::SubscribeHandler<dynamic_reconfigure::Config> m_sh_formation_control_updates;
-      /* double overshoot_probability_; */
-      /* double proportional_constant_; */
+      std::vector<mrs_lib::SubscribeHandler<mrs_msgs::UavState>> m_sh_odometry_updates;
+      std::vector<mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>> m_sh_relative_localization;
       bool control_enables_ = false;
       bool use_noise_ = false;
       std::string last_formation_file_;
@@ -300,6 +419,9 @@ namespace difec_ron {
 
       double restraining_factor_, proportional_constant_;
       bool restraining_enabled_, control_enabled_;
+      e::VectorXd acceleration_pos_, acceleration_rot_, velocity_ang_;
+      e::MatrixXd connection_matrix_;
+      bool connected_;
 
   };
 }

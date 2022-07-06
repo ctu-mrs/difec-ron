@@ -1,4 +1,5 @@
 std_msgs/Header header
+std_msgs/String formation_file
 std_msgs/Float64 formation_error
 std_msgs/Float64 position_error
 std_msgs/Float64 orientation_error
@@ -6,3 +7,7 @@ std_msgs/Float64 proportional_kef
 std_msgs/Float64 restraining_l
 std_msgs/Bool restraining_enabled
 std_msgs/Bool control_enabled
+std_msgs/Float64 velocity_angular
+std_msgs/Float64 acceleration_position
+std_msgs/Float64 acceleration_rotation
+std_msgs/Bool graph_connected

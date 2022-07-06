@@ -16,6 +16,7 @@
   <depend>libopencv-dev</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>eigen_conversions</depend>
   <depend>mrs_lib</depend>
   <depend>mrs_msgs</depend>
   <depend>message_runtime</depend>
