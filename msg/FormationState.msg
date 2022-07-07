@@ -10,4 +10,4 @@ std_msgs/Bool control_enabled
 std_msgs/Float64 velocity_angular
 std_msgs/Float64 acceleration_position
 std_msgs/Float64 acceleration_rotation
-std_msgs/Bool graph_connected
+std_msgs/Float64 fiedler_eigenvalue

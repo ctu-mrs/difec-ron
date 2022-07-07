@@ -12,6 +12,7 @@
 
   <arg name="process_rate" value="20.0"/>
   <arg name="formation_file_location"/>
+  <arg name="initial_formation_file" value="formation_a.csv"/>
 
   <group ns="error_calculator">
     <!-- <node name="formation_error_calclulator" pkg="difec_ron" type="FormationErrorCalculator" output="screen" > --> 
@@ -20,6 +21,7 @@
       <param name="common_frame" type="string" value="global_gps"/>
       <param name="formation_controller_node" type="string" value="swarm_control"/>
       <param name="formation_file_location" type="string" value="$(arg formation_file_location)"/>
+      <param name="initial_formation_file" type="string" value="$(arg initial_formation_file)"/>
       <!-- <param name="local_username" type="string" value="$(arg local_username)"/> -->
       <param name="process_rate" type="double" value="$(arg process_rate)"/>
     </node>
