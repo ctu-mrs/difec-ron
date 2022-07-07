@@ -74,6 +74,7 @@ namespace difec_ron {
 
         mrs_lib::SubscribeHandlerOptions shopts(nh);
         shopts.no_message_timeout = ros::Duration(5.0);
+        shopts.use_thread_timer = true;
 
         mrs_lib::construct_object(m_sh_formation_control_updates, shopts, "/"+_uav_list_.at(0)+"/"+_formation_controler_node_+"/parameter_updates");
 
@@ -89,6 +90,7 @@ namespace difec_ron {
           velocity_ang_(u) =  std::nan("1");
 
           m_sh_relative_localization.push_back(mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>(shopts, "/"+uav+"/uvdar/filteredPoses"));
+          rel_localizations_.push_back(mrs_msgs::PoseWithCovarianceArrayStamped());
           u++;
         }
         
@@ -196,20 +198,22 @@ namespace difec_ron {
           /* e::VectorXd degree_matrix = e::VectorXd::Zero(_uav_list_.size()) */
           int v = 0;
           for (auto uav_name : _uav_list_){
-            const auto msg_ptr = m_sh_relative_localization.at(v).waitForNew(timeout);
+            ROS_INFO_STREAM("[FormationControl]: v: " << v); 
+            ROS_INFO_STREAM("[FormationControl]: uav_name " << uav_name); 
+            const auto msg_ptr = m_sh_relative_localization.at(v).waitForNew(ros::WallDuration(timeout));
             if (msg_ptr){
-              for (const auto rl : msg_ptr->poses){
-                ROS_INFO_STREAM("[FormationControl]: v: " << v); 
-                ROS_INFO_STREAM("[FormationControl]: uav_name " << uav_name); 
-                int index = getUavIndexFromID(formation_desired_,rl.id);
-                if ((index >= 0) && (index != v)){
-                  laplacian_matrix_(v,index) = -1;
-                  laplacian_matrix_(index,v) = -1;
-                  /* laplacian_matrix_(index,v) = -1; */
-                  /* laplacian_matrix_(index,index) +=1; */
-                }
-              }
+              rel_localizations_.at(v) = *msg_ptr;
             }
+            ROS_INFO_STREAM("[FormationControl]: obs. count: " << rel_localizations_.at(v).poses.size()); 
+            for (const auto rl : rel_localizations_.at(v).poses){
+              int index = getUavIndexFromID(formation_desired_,rl.id);
+              if ((index >= 0) && (index != v)){
+                laplacian_matrix_(v,index) = -1;
+                laplacian_matrix_(index,v) = -1;
+                /* laplacian_matrix_(index,v) = -1; */
+                /* laplacian_matrix_(index,index) +=1; */
+              }
+              }
             v++;
         }
           for (int y = 0; y < (int)(_uav_list_.size()); y++){
@@ -449,6 +453,8 @@ namespace difec_ron {
       mrs_lib::SubscribeHandler<dynamic_reconfigure::Config> m_sh_formation_control_updates;
       std::vector<mrs_lib::SubscribeHandler<mrs_msgs::UavState>> m_sh_odometry_updates;
       std::vector<mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>> m_sh_relative_localization;
+      std::vector<mrs_msgs::PoseWithCovarianceArrayStamped> rel_localizations_;
+
       bool control_enables_ = false;
       bool use_noise_ = false;
       std::string last_formation_file_;
