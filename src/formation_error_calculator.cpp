@@ -186,6 +186,7 @@ namespace difec_ron {
 
           if (filename != last_formation_file_){
             /* auto opt = load_formation(filename); */
+            ROS_INFO_STREAM("[FormationControl]: Retrieving formation for file '" << filename << "'."); 
             auto opt = retrieve_current_formation();
             if (opt.has_value()){
               formation_desired_ = opt.value();
@@ -194,7 +195,7 @@ namespace difec_ron {
               formation_desired_relative_ = formationRelative(formation_desired_);
             }
             else {
-              ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not load formation file " << filename << ". Returning.");
+              ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not retrieve formation corresponding to file " << filename << ". Returning.");
               return;
             }
           }
@@ -203,13 +204,13 @@ namespace difec_ron {
           /* e::VectorXd degree_matrix = e::VectorXd::Zero(_uav_list_.size()) */
           int v = 0;
           for (auto uav_name : _uav_list_){
-            ROS_INFO_STREAM("[FormationControl]: v: " << v); 
-            ROS_INFO_STREAM("[FormationControl]: uav_name " << uav_name); 
+            /* ROS_INFO_STREAM("[FormationControl]: v: " << v); */ 
+            /* ROS_INFO_STREAM("[FormationControl]: uav_name " << uav_name); */ 
             const auto msg_ptr = m_sh_relative_localization.at(v).waitForNew(ros::WallDuration(timeout));
             if (msg_ptr){
               rel_localizations_.at(v) = *msg_ptr;
             }
-            ROS_INFO_STREAM("[FormationControl]: obs. count: " << rel_localizations_.at(v).poses.size()); 
+            /* ROS_INFO_STREAM("[FormationControl]: obs. count: " << rel_localizations_.at(v).poses.size()); */ 
             for (const auto rl : rel_localizations_.at(v).poses){
               int index = getUavIndexFromID(formation_desired_,rl.id);
               if ((index >= 0) && (index != v)){
@@ -231,7 +232,7 @@ namespace difec_ron {
 
           //Get the Fiedler eigenvalue
           e::VectorXd eigs = laplacian_matrix_.eigenvalues().real();
-          ROS_INFO_STREAM("[FormationControl]: eigs: " << eigs.transpose()); 
+          /* ROS_INFO_STREAM("[FormationControl]: eigs: " << eigs.transpose()); */ 
           double smallest = std::nan("1");
           fiedler_ = std::nan("1"); //whatever
           for (int i = 0; i< (int)(_uav_list_.size()); i++){
@@ -243,8 +244,8 @@ namespace difec_ron {
             else if ((fabs(candidate-smallest) > 0.1) && ((candidate < (fiedler_+0.1)) || (std::isnan(fiedler_)))){
               fiedler_ = candidate;
             }
-            ROS_INFO_STREAM("[FormationControl]: smallest: \n" << smallest); 
-            ROS_INFO_STREAM("[FormationControl]: fiedler: \n" << fiedler_); 
+            /* ROS_INFO_STREAM("[FormationControl]: smallest: \n" << smallest); */ 
+            /* ROS_INFO_STREAM("[FormationControl]: fiedler: \n" << fiedler_); */ 
           }
           /* connected_ = (fiedler > 0.0); */
 
@@ -280,7 +281,7 @@ namespace difec_ron {
         msg_pub.velocity_angular.data = velocity_ang_.norm();
         msg_pub.acceleration_position.data = acceleration_pos_.norm();
         msg_pub.acceleration_rotation.data = acceleration_rot_.norm();
-        ROS_INFO_STREAM("[FormationControl]: conn. matrix: \n" << laplacian_matrix_); 
+        /* ROS_INFO_STREAM("[FormationControl]: conn. matrix: \n" << laplacian_matrix_); */ 
         /* msg_pub.graph_connected.data = connected_; //one is True */
         msg_pub.fiedler_eigenvalue.data = fiedler_; //one is True
         pub_formation_error_.publish(msg_pub);
@@ -316,7 +317,7 @@ namespace difec_ron {
 
         for ( int i = 0; i < (int)(curr.size()); i++){
           auto curr_p_diff = desired.at(i).p - curr.at(i).p;
-          auto curr_psi_diff = desired.at(i).psi - curr.at(i).psi;
+          auto curr_psi_diff = rads_t::dist(desired.at(i).psi,curr.at(i).psi);
       /* ROS_INFO_STREAM("[FormationControl]: des: \n" << desired.at(i).p.transpose() << ", " << desired.at(i).psi); */ 
       /* ROS_INFO_STREAM("[FormationControl]: cur: \n" << curr.at(i).p.transpose() << ", " << curr.at(i).psi); */ 
           formation_diff_vector(i*4 + 0) = curr_p_diff.x();
@@ -341,8 +342,8 @@ namespace difec_ron {
         int result = -1;
 
         for (auto ag : formation){
-          ROS_INFO_STREAM("[FormationControl]: ag.id: " << ag.id); 
-          ROS_INFO_STREAM("[FormationControl]: ag.uav_name: " << ag.uav_name); 
+          /* ROS_INFO_STREAM("[FormationControl]: ag.id: " << ag.id); */ 
+          /* ROS_INFO_STREAM("[FormationControl]: ag.uav_name: " << ag.uav_name); */ 
           if (ag.id == (uint64_t)ID){
             int j=0;
             for (auto uav : _uav_list_){
@@ -441,7 +442,7 @@ namespace difec_ron {
 
       std::optional<std::vector<agent_t>> retrieve_current_formation()
       {
-        const ros::WallDuration timeout(1.0/10.0);
+        const ros::WallDuration timeout(2.0/10.0);
         const auto msg_ptr = m_sh_formation_visualization.waitForNew(timeout);
         
         if (msg_ptr){
@@ -455,6 +456,7 @@ namespace difec_ron {
               const rads_t heading = atan2(m.points[1].y - m.points[0].y,m.points[1].x - m.points[0].x);
               const pose_t agent_pose = {position, heading};
               const agent_t agent = {(uint64_t)(m.id), m.ns, agent_pose};
+              ROS_INFO_STREAM("[FormationControl]: adding p: " << position.transpose() << ", h: " << heading.value()); 
               formation.push_back(agent);
             }
           }
