@@ -278,9 +278,9 @@ namespace difec_ron {
         msg_pub.restraining_l.data = restraining_factor_;
         msg_pub.restraining_enabled.data = restraining_enabled_;
         msg_pub.control_enabled.data = control_enabled_;
-        msg_pub.velocity_angular.data = velocity_ang_.norm();
-        msg_pub.acceleration_position.data = acceleration_pos_.norm();
-        msg_pub.acceleration_rotation.data = acceleration_rot_.norm();
+        msg_pub.velocity_angular.data = velocity_ang_.mean();
+        msg_pub.acceleration_position.data = acceleration_pos_.mean();
+        msg_pub.acceleration_rotation.data = acceleration_rot_.mean();
         /* ROS_INFO_STREAM("[FormationControl]: conn. matrix: \n" << laplacian_matrix_); */ 
         /* msg_pub.graph_connected.data = connected_; //one is True */
         msg_pub.fiedler_eigenvalue.data = fiedler_; //one is True
