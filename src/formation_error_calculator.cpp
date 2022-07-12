@@ -332,7 +332,8 @@ namespace difec_ron {
           orientation_diff_vector(i*1 + 0) = curr_psi_diff;
         }
 
-      /* ROS_INFO_STREAM("[FormationControl]: Partial errors: \n" << diff_vector.transpose()); */ 
+      /* ROS_INFO_STREAM("[FormationControl]: Error function: \n" << formation_diff_vector.norm()); */ 
+      /* ROS_INFO_STREAM("[FormationControl]: Partial position errors: \n" << position_diff_vector.transpose()); */ 
 
 
         return {formation_diff_vector.norm(),position_diff_vector.mean(),orientation_diff_vector.mean()};
