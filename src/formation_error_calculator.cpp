@@ -3,6 +3,8 @@
 #include <dynamic_reconfigure/Config.h>
 #include <mrs_msgs/UavState.h>
 #include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
+#include <visualization_msgs/MarkerArray.h>
+
 #include <eigen_conversions/eigen_msg.h>
 
 
@@ -78,6 +80,8 @@ namespace difec_ron {
 
         mrs_lib::construct_object(m_sh_formation_control_updates, shopts, "/"+_uav_list_.at(0)+"/"+_formation_controler_node_+"/parameter_updates");
 
+        mrs_lib::construct_object(m_sh_formation_visualization, shopts, "/"+_uav_list_.at(0)+"/"+_formation_controler_node_+"/visualization_formation");
+        
 
         acceleration_pos_ = e::VectorXd(_uav_list_.size());
         acceleration_rot_ = e::VectorXd(_uav_list_.size());
@@ -181,7 +185,8 @@ namespace difec_ron {
           std::string filename = _formation_file_location_+"/"+base_filename;
 
           if (filename != last_formation_file_){
-            auto opt = load_formation(filename);
+            /* auto opt = load_formation(filename); */
+            auto opt = retrieve_current_formation();
             if (opt.has_value()){
               formation_desired_ = opt.value();
               last_formation_file_ = filename;
@@ -260,14 +265,14 @@ namespace difec_ron {
           return;
         }
 
-        auto [formation_error, position_error, orientation_error] = formationError(formation_curr_relative_, formation_desired_relative_);
+        auto [formation_error, position_mean_error, orientation_mean_error] = formationError(formation_curr_relative_, formation_desired_relative_);
 
         difec_ron::FormationState msg_pub;
         msg_pub.header.stamp = now;
         msg_pub.formation_file.data = last_formation_file_;
         msg_pub.formation_error.data = formation_error;
-        msg_pub.position_error.data = position_error;
-        msg_pub.orientation_error.data = orientation_error;
+        msg_pub.position_mean_error.data = position_mean_error;
+        msg_pub.orientation_mean_error.data = orientation_mean_error;
         msg_pub.proportional_kef.data = proportional_constant_;
         msg_pub.restraining_l.data = restraining_factor_;
         msg_pub.restraining_enabled.data = restraining_enabled_;
@@ -306,7 +311,7 @@ namespace difec_ron {
 
       std::tuple<double,double,double> formationError(std::vector<pose_t> curr, std::vector<pose_t> desired){
         e::VectorXd formation_diff_vector(curr.size()*4);
-        e::VectorXd position_diff_vector(curr.size()*3);
+        e::VectorXd position_diff_vector(curr.size()*1);
         e::VectorXd orientation_diff_vector(curr.size()*1);
 
         for ( int i = 0; i < (int)(curr.size()); i++){
@@ -319,9 +324,9 @@ namespace difec_ron {
           formation_diff_vector(i*4 + 2) = curr_p_diff.z();
           formation_diff_vector(i*4 + 3) = curr_psi_diff;
 
-          position_diff_vector(i*3 + 0) = curr_p_diff.x();
-          position_diff_vector(i*3 + 1) = curr_p_diff.y();
-          position_diff_vector(i*3 + 2) = curr_p_diff.z();
+          position_diff_vector(i*1 + 0) = curr_p_diff.norm();
+          /* position_diff_vector(i*3 + 1) = curr_p_diff.y(); */
+          /* position_diff_vector(i*3 + 2) = curr_p_diff.z(); */
 
           orientation_diff_vector(i*1 + 0) = curr_psi_diff;
         }
@@ -329,7 +334,7 @@ namespace difec_ron {
       /* ROS_INFO_STREAM("[FormationControl]: Partial errors: \n" << diff_vector.transpose()); */ 
 
 
-        return {formation_diff_vector.norm(),position_diff_vector.norm(),orientation_diff_vector.norm()};
+        return {formation_diff_vector.norm(),position_diff_vector.mean(),orientation_diff_vector.mean()};
       }
 
       int getUavIndexFromID(std::vector<agent_t> formation, int ID){
@@ -372,67 +377,90 @@ namespace difec_ron {
       }
 
       std::optional<std::vector<agent_t>> load_formation(const std::string& filename)
-    {
-      ROS_INFO_STREAM("[FormationControl]: Parsing formation from file '" << filename << "'."); 
-      std::ifstream fs(filename);
-      if (!fs.is_open())
       {
-        ROS_ERROR_STREAM("[FormationControl]: Couldn't open the formation file!");
+        ROS_INFO_STREAM("[FormationControl]: Parsing formation from file '" << filename << "'."); 
+        std::ifstream fs(filename);
+        if (!fs.is_open())
+        {
+          ROS_ERROR_STREAM("[FormationControl]: Couldn't open the formation file!");
+          return std::nullopt;
+        }
+        // ignore the first line that only contains the csv columns description
+        std::string line;
+        std::getline(fs, line);
+
+        bool all_ok = true;
+        std::vector<agent_t> formation;
+        while (std::getline(fs, line))
+        {
+          // Ignore empty lines
+          if (line.empty())
+            continue;
+
+          // Tokenize the line
+          boost::trim(line);
+          /* const std::vector<std::string> st = split(line, ' '); */
+          std::vector<std::string> st;
+          boost::split(st, line, boost::is_any_of(",;"), boost::token_compress_on);
+
+          if (st.size() < 5)
+          {
+            ROS_WARN_STREAM("[FormationControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
+            continue;
+          }
+
+          size_t it = 0;
+          const std::string uav_name = st.at(it++);
+          ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name);
+          try
+          {
+            const uint64_t id = std::stoul(st.at(it++));
+            // try to parse the expected values
+            const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
+            const rads_t heading = std::stod(st.at(it++));
+
+            // create the agent and add it to the formation
+            const vec3_t position(coords[0], coords[1], coords[2]);
+            const pose_t agent_pose = {position, heading};
+            const agent_t agent = {id, uav_name, agent_pose};
+            formation.emplace_back(agent);
+          }
+          catch (const std::exception& e)
+          {
+            ROS_WARN_STREAM("[FormationControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
+            all_ok = false;
+            continue;
+          }
+        }
+
+        if (all_ok)
+          return formation;
+        else
+          return std::nullopt;
+      }
+
+      std::optional<std::vector<agent_t>> retrieve_current_formation()
+      {
+        const ros::WallDuration timeout(1.0/10.0);
+        const auto msg_ptr = m_sh_formation_visualization.waitForNew(timeout);
+        
+        if (msg_ptr){
+          std::vector<agent_t> formation;
+          for (const auto& m : msg_ptr->markers){
+            if (m.points.size() < 2){
+              return std::nullopt;
+            }
+            const vec3_t position(m.points[0].x, m.points[0].y, m.points[0].z);
+            const rads_t heading = atan2(m.points[1].y - m.points[0].y,m.points[1].x - m.points[0].x);
+            const pose_t agent_pose = {position, heading};
+            const agent_t agent = {(uint64_t)(m.id), m.ns, agent_pose};
+            formation.push_back(agent);
+          }
+          return formation;
+        }
+
         return std::nullopt;
       }
-      // ignore the first line that only contains the csv columns description
-      std::string line;
-      std::getline(fs, line);
-
-      bool all_ok = true;
-      std::vector<agent_t> formation;
-      while (std::getline(fs, line))
-      {
-        // Ignore empty lines
-        if (line.empty())
-          continue;
-
-        // Tokenize the line
-        boost::trim(line);
-        /* const std::vector<std::string> st = split(line, ' '); */
-        std::vector<std::string> st;
-        boost::split(st, line, boost::is_any_of(",;"), boost::token_compress_on);
-
-        if (st.size() < 5)
-        {
-          ROS_WARN_STREAM("[FormationControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
-          continue;
-        }
-
-        size_t it = 0;
-        const std::string uav_name = st.at(it++);
-        ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name);
-        try
-        {
-          const uint64_t id = std::stoul(st.at(it++));
-          // try to parse the expected values
-          const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
-          const rads_t heading = std::stod(st.at(it++));
-
-          // create the agent and add it to the formation
-          const vec3_t position(coords[0], coords[1], coords[2]);
-          const pose_t agent_pose = {position, heading};
-          const agent_t agent = {id, uav_name, agent_pose};
-          formation.emplace_back(agent);
-        }
-        catch (const std::exception& e)
-        {
-          ROS_WARN_STREAM("[FormationControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
-          all_ok = false;
-          continue;
-        }
-      }
-
-      if (all_ok)
-        return formation;
-      else
-        return std::nullopt;
-    }
 
       mrs_lib::Transformer m_transformer;
       ros::Publisher pub_formation_error_;
@@ -453,6 +481,7 @@ namespace difec_ron {
       mrs_lib::SubscribeHandler<dynamic_reconfigure::Config> m_sh_formation_control_updates;
       std::vector<mrs_lib::SubscribeHandler<mrs_msgs::UavState>> m_sh_odometry_updates;
       std::vector<mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>> m_sh_relative_localization;
+      mrs_lib::SubscribeHandler<visualization_msgs::MarkerArray> m_sh_formation_visualization;
       std::vector<mrs_msgs::PoseWithCovarianceArrayStamped> rel_localizations_;
 
       bool control_enables_ = false;
