@@ -447,14 +447,16 @@ namespace difec_ron {
         if (msg_ptr){
           std::vector<agent_t> formation;
           for (const auto& m : msg_ptr->markers){
-            if (m.points.size() < 2){
-              return std::nullopt;
+            if (m.id >= 0) {
+              if (m.points.size() < 2){
+                return std::nullopt;
+              }
+              const vec3_t position(m.points[0].x, m.points[0].y, m.points[0].z);
+              const rads_t heading = atan2(m.points[1].y - m.points[0].y,m.points[1].x - m.points[0].x);
+              const pose_t agent_pose = {position, heading};
+              const agent_t agent = {(uint64_t)(m.id), m.ns, agent_pose};
+              formation.push_back(agent);
             }
-            const vec3_t position(m.points[0].x, m.points[0].y, m.points[0].z);
-            const rads_t heading = atan2(m.points[1].y - m.points[0].y,m.points[1].x - m.points[0].x);
-            const pose_t agent_pose = {position, heading};
-            const agent_t agent = {(uint64_t)(m.id), m.ns, agent_pose};
-            formation.push_back(agent);
           }
           return formation;
         }
