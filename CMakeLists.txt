@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_sensor_msgs
   tf2_eigen
   tf2_geometry_msgs
+  eigen_conversions
   visualization_msgs
   mrs_lib
   nodelet
@@ -53,6 +54,14 @@ generate_dynamic_reconfigure_options(
   config/FormationControlParams.cfg
 )
 
+add_message_files(DIRECTORY msg FILES
+  FormationState.msg
+)
+
+generate_messages(DEPENDENCIES
+  std_msgs
+)
+
 catkin_package(
   CATKIN_DEPENDS message_runtime mrs_lib # roscpp rospy std_msgs
 )
@@ -69,12 +78,18 @@ include_directories(include
   ${Eigen_INCLUDE_DIRS}
 )
 
-add_library(SwarmControl src/swarm_control.cpp)
-add_dependencies(SwarmControl
+add_library(FormationControl src/formation_control.cpp)
+add_dependencies(FormationControl
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
 )
-target_link_libraries(SwarmControl
+target_link_libraries(FormationControl
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
+
+add_executable(FormationErrorCalculator src/formation_error_calculator.cpp)
+add_dependencies(FormationErrorCalculator ${catkin_LIBRARIES})
+target_link_libraries(FormationErrorCalculator
+  ${catkin_LIBRARIES}
+  )

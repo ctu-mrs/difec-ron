@@ -20,13 +20,13 @@ topics: # topics published out of this machine to receivers specified above
  - name: "mrs_uav_status/uav_status_short"
    compress: true # enable bz2 compression
    rate: 10.0
- - name: "/swarm_multireconfigure/multireconfigure/parameter_descriptions"
+ - name: "/formation_multireconfigure/multireconfigure/parameter_descriptions"
    compress: true # enable bz2 compression
    rate: 1.0
- - name: "swarm_control/parameter_descriptions"
+ - name: "formation_control/parameter_descriptions"
    compress: true # enable bz2 compression
    rate: 1.0
- - name: "swarm_control/parameter_updates"
+ - name: "formation_control/parameter_updates"
    compress: true # enable bz2 compression
    rate: 10.0
  - name: "swarm_control/visualization_p_c1"
@@ -52,7 +52,7 @@ topics: # topics published out of this machine to receivers specified above
    rate: 1.0
 
 services:
-  - name: "/swarm_multireconfigure/multireconfigure/set_parameters"
+  - name: "/formation_multireconfigure/multireconfigure/set_parameters"
     type: dynamic_reconfigure/Reconfigure
-  - name: "swarm_control/set_parameters"
+  - name: "formation_control/set_parameters"
     type: dynamic_reconfigure/Reconfigure

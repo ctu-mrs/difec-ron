@@ -743,7 +743,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav1/swarm_control/visualization_formation
+      Marker Topic: /uav1/formation_control/visualization_formation
       Name: formation
       Namespaces:
         {}
@@ -751,7 +751,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav2/swarm_control/visualization_formation
+      Marker Topic: /uav2/formation_control/visualization_formation
       Name: formation (uav2)
       Namespaces:
         {}
@@ -759,7 +759,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav3/swarm_control/visualization_formation
+      Marker Topic: /uav3/formation_control/visualization_formation
       Name: formation (uav3)
       Namespaces:
         {}
@@ -767,7 +767,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav1/swarm_control/visualization_p_c12
+      Marker Topic: /uav1/formation_control/visualization_p_c12
       Name: p_c1/2
       Namespaces:
         {}
@@ -775,7 +775,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav1/swarm_control/visualization_psi_comp
+      Marker Topic: /uav1/formation_control/visualization_psi_comp
       Name: psi_c1/2
       Namespaces:
         {}
@@ -783,7 +783,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav1/swarm_control/visualization_u
+      Marker Topic: /uav1/formation_control/visualization_u
       Name: u_i
       Namespaces:
         {}
@@ -791,7 +791,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav1/swarm_control/visualization_omega
+      Marker Topic: /uav1/formation_control/visualization_omega
       Name: omega_i
       Namespaces:
         {}
@@ -799,7 +799,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav2/swarm_control/visualization_p_c12
+      Marker Topic: /uav2/formation_control/visualization_p_c12
       Name: p_c1/2 (uav2)
       Namespaces:
         p^c1 - p^d: true
@@ -810,7 +810,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav2/swarm_control/visualization_psi_comp
+      Marker Topic: /uav2/formation_control/visualization_psi_comp
       Name: psi_c1/2 (uav2)
       Namespaces:
         2*(psi^c - psi^d): true
@@ -821,7 +821,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav2/swarm_control/visualization_omega
+      Marker Topic: /uav2/formation_control/visualization_omega
       Name: omega_i (uav2)
       Namespaces:
         "": true
@@ -829,7 +829,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav2/swarm_control/visualization_u
+      Marker Topic: /uav2/formation_control/visualization_u
       Name: u_i (uav2)
       Namespaces:
         "": true
@@ -837,7 +837,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav3/swarm_control/visualization_p_c12
+      Marker Topic: /uav3/formation_control/visualization_p_c12
       Name: p_c1/2 (uav3)
       Namespaces:
         p^c1 - p^d: true
@@ -848,7 +848,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /uav3/swarm_control/visualization_psi_comp
+      Marker Topic: /uav3/formation_control/visualization_psi_comp
       Name: psi_c1/2 (uav3)
       Namespaces:
         2*(psi^c - psi^d): true
@@ -859,7 +859,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav3/swarm_control/visualization_omega
+      Marker Topic: /uav3/formation_control/visualization_omega
       Name: omega_i (uav3)
       Namespaces:
         "": true
@@ -867,7 +867,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /uav3/swarm_control/visualization_u
+      Marker Topic: /uav3/formation_control/visualization_u
       Name: u_i (uav3)
       Namespaces:
         "": true

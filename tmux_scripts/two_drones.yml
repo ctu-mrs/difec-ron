@@ -65,8 +65,8 @@ windows:
   - difec_ron:
       layout: even-vertical
       panes:
-        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
-        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron swarm_control.launch use_raw_measurements:=false
+        - export UAV_NAME=uav1; waitForControl; roslaunch difec_ron formation_control.launch use_raw_measurements:=false
+        - export UAV_NAME=uav2; waitForControl; roslaunch difec_ron formation_control.launch use_raw_measurements:=false
   - slow_down:
       layout: even-vertical
       panes:
@@ -91,4 +91,4 @@ windows:
       layout: even-vertical
       panes:
         - sleep 2; urxvt -e vim $(rospack find difec_ron)/config/formation.csv
-        - export UAV_NAME=uav2; waitForControl; sleep 25; rosrun rqt_reconfigure rqt_reconfigure swarm_multireconfigure/multireconfigure
+        - export UAV_NAME=uav2; waitForControl; sleep 25; rosrun rqt_reconfigure rqt_reconfigure formation_multireconfigure/multireconfigure

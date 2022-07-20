@@ -28,7 +28,7 @@
 
 namespace difec_ron
 {
-  class SwarmControl : public nodelet::Nodelet
+  class FormationControl : public nodelet::Nodelet
   {
 
     /* some common type definitions //{ */
@@ -81,14 +81,14 @@ namespace difec_ron
     void onInit()
     {
       ros::NodeHandle nh = nodelet::Nodelet::getMTPrivateNodeHandle();
-      ROS_INFO("[SwarmControl]: Waiting for valid time...");
+      ROS_INFO("[FormationControl]: Waiting for valid time...");
       ros::Time::waitForValid();
 
-      m_node_name = "SwarmControl";
+      m_node_name = "FormationControl";
 
       /* Load parameters from ROS //{*/
       NODELET_INFO("Loading default dynamic parameters:");
-      m_drmgr_ptr = std::make_unique<drmgr_t>(nh, true, m_node_name, boost::bind(&SwarmControl::dynparam_callback, this, _1, _2));
+      m_drmgr_ptr = std::make_unique<drmgr_t>(nh, true, m_node_name, boost::bind(&FormationControl::dynparam_callback, this, _1, _2));
 
       // CHECK LOADING STATUS
       if (!m_drmgr_ptr->loaded_successfully())
@@ -120,7 +120,7 @@ namespace difec_ron
       }
 
       m_formation = formation_opt.value();
-      NODELET_INFO_STREAM("[SwarmControl]: Loaded formation relative to UAV " << m_uav_name << ": ");
+      NODELET_INFO_STREAM("[FormationControl]: Loaded formation relative to UAV " << m_uav_name << ": ");
       print_formation(m_formation);
       //}
 
@@ -146,8 +146,8 @@ namespace difec_ron
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
       //}
 
-      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0/repeat_rate), &SwarmControl::velocity_command_loop, this);
-      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0), &SwarmControl::dynrec_publish_loop, this);
+      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0/repeat_rate), &FormationControl::velocity_command_loop, this);
+      m_tim_vel_cmd = nh.createTimer(ros::Duration(1.0), &FormationControl::dynrec_publish_loop, this);
 
       m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
 
@@ -206,7 +206,7 @@ namespace difec_ron
       
       //}
 
-      m_main_thread = std::thread(&SwarmControl::main_loop, this);
+      m_main_thread = std::thread(&FormationControl::main_loop, this);
       m_main_thread.detach();
 
       std::cout << "----------------------------------------------------------" << std::endl;
@@ -237,10 +237,10 @@ namespace difec_ron
 
       if (msg->poses.empty())
       {
-        ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: No neighbors detected out of " << m_formation.size()-1 << " total neighbors. Doing nothing.");
+        ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: No neighbors detected out of " << m_formation.size()-1 << " total neighbors. Doing nothing.");
         return;
       }
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Receiving detections of " << msg->poses.size() << " neighbors out of " << m_formation.size()-1 << " total neighbors.");
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Receiving detections of " << msg->poses.size() << " neighbors out of " << m_formation.size()-1 << " total neighbors.");
 
       const ros::Time now = ros::Time::now();
       static ros::Time prev_action_time = now;
@@ -251,7 +251,7 @@ namespace difec_ron
       const auto tf_opt = m_transformer.getTransform(msg->header.frame_id, msg->header.stamp, m_uav_frame_id, now, m_world_frame_id);
       if (!tf_opt.has_value())
       {
-        ROS_ERROR_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Could not lookup transformation from \"" << msg->header.frame_id << "\" to \"" << m_uav_frame_id << "\" through inertial frame \"" << m_world_frame_id << "\", ignoring detection");
+        ROS_ERROR_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Could not lookup transformation from \"" << msg->header.frame_id << "\" to \"" << m_uav_frame_id << "\" through inertial frame \"" << m_world_frame_id << "\", ignoring detection");
         return;
       }
       const auto tf_ros = tf_opt.value();
@@ -273,7 +273,7 @@ namespace difec_ron
         // ignore unexpected IDs
         if (!formation_agent_opt.has_value())
         {
-          ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Received detection of neighbor with unexpected ID" << pose.id << ". Ignoring.");
+          ROS_WARN_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Received detection of neighbor with unexpected ID" << pose.id << ". Ignoring.");
           continue;
         }
 
@@ -299,8 +299,8 @@ namespace difec_ron
         // TODO: It should be transformed, but the difference for sigma will typically not be that bad
         const double sig = sqrt(cov_orig(5, 5)); //square root, since covariance has squared elements
 
-        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << pose.id << " has C: " << std::endl << cov_orig);
-        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << pose.id << " has heading sigma: " << sig << " rad");
+        ROS_INFO_STREAM("[FormationControl]: Target ID: " << pose.id << " has C: " << std::endl << cov_orig);
+        ROS_INFO_STREAM("[FormationControl]: Target ID: " << pose.id << " has heading sigma: " << sig << " rad");
 
         // add the measurement to the list
         const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
@@ -326,7 +326,7 @@ namespace difec_ron
         omega = action.second;
       }
 
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
 
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
@@ -382,7 +382,7 @@ namespace difec_ron
         // position difference between measured and desired position
         const vec3_t p_md = m.p - d.p;
 
-        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+        ROS_INFO_STREAM("[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
     
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
@@ -525,7 +525,7 @@ namespace difec_ron
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
       const double omega = k_e*(omega_accum_1 + 2*omega_accum_2);
     
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
     
       return {u, omega};
     }
@@ -556,7 +556,7 @@ namespace difec_ron
         // just a helper matrix (could be replaced with a cross product)
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
 
-        ROS_INFO_STREAM("[SwarmControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+        ROS_INFO_STREAM("[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
     
         // | --------------------- calculate u_1 ---------------------- |
         // TODO: proper inverse calculation and checking
@@ -612,7 +612,7 @@ namespace difec_ron
       const vec3_t u = k_e*(u_accum_1 + u_accum_2);
       const double omega = k_e*(omega_accum_1 + 2.0*omega_accum_2);
     
-      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[SwarmControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Rotation action components: heading: " << omega_accum_2 << ", bearing: " << omega_accum_1);
     
       return {u, omega};
     }
@@ -991,11 +991,11 @@ namespace difec_ron
     /* load_formation() method //{ */
     std::optional<std::vector<agent_t>> load_formation(const std::string& this_uav_name, const std::string& filename)
     {
-      ROS_INFO_STREAM("[SwarmControl]: Parsing formation from file '" << filename << "'."); 
+      ROS_INFO_STREAM("[FormationControl]: Parsing formation from file '" << filename << "'."); 
       std::ifstream fs(filename);
       if (!fs.is_open())
       {
-        ROS_ERROR_STREAM("[SwarmControl]: Couldn't open the formation file!");
+        ROS_ERROR_STREAM("[FormationControl]: Couldn't open the formation file!");
         return std::nullopt;
       }
       // ignore the first line that only contains the csv columns description
@@ -1018,13 +1018,13 @@ namespace difec_ron
 
         if (st.size() < 5)
         {
-          ROS_WARN_STREAM("[SwarmControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
+          ROS_WARN_STREAM("[FormationControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
           continue;
         }
 
         size_t it = 0;
         const std::string uav_name = st.at(it++);
-        ROS_INFO_STREAM("[SwarmControl]: Loading formation data for UAV " << uav_name);
+        ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name);
         try
         {
           // try to parse the expected values
@@ -1040,7 +1040,7 @@ namespace difec_ron
         }
         catch (const std::exception& e)
         {
-          ROS_WARN_STREAM("[SwarmControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
+          ROS_WARN_STREAM("[FormationControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
           all_ok = false;
           continue;
         }
@@ -1050,7 +1050,7 @@ namespace difec_ron
       const auto this_agent_it = std::find_if(std::begin(formation), std::end(formation), [&this_uav_name](const auto& agent){return agent.uav_name == this_uav_name;});
       if (this_agent_it == std::end(formation))
       {
-        ROS_ERROR_STREAM("[SwarmControl]: The current UAV " << this_uav_name << " not found in the specified formation!");
+        ROS_ERROR_STREAM("[FormationControl]: The current UAV " << this_uav_name << " not found in the specified formation!");
         return std::nullopt;
       }
       const agent_t& this_agent = *this_agent_it;
@@ -1166,8 +1166,8 @@ namespace difec_ron
 
     //}
 
-  };  // class SwarmControl
+  };  // class FormationControl
 };    // namespace difec_ron
 
 #include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(difec_ron::SwarmControl, nodelet::Nodelet)
+PLUGINLIB_EXPORT_CLASS(difec_ron::FormationControl, nodelet::Nodelet)

@@ -96,7 +96,7 @@ Visualization Manager:
           Displays:
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav1/swarm_control/visualization_u
+              Marker Topic: /uav1/formation_control/visualization_u
               Name: u (linear velocity action)
               Namespaces:
                 "": true
@@ -104,7 +104,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav1/swarm_control/visualization_omega
+              Marker Topic: /uav1/formation_control/visualization_omega
               Name: omega (rotational velocity action)
               Namespaces:
                 "": true
@@ -112,7 +112,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /uav1/swarm_control/visualization_formation
+              Marker Topic: /uav1/formation_control/visualization_formation
               Name: desired formation
               Namespaces:
                 {}
@@ -153,7 +153,7 @@ Visualization Manager:
           Value: true
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav1/swarm_control/visualization_p_c12
+          Marker Topic: /uav1/formation_control/visualization_p_c12
           Name: p^c12
           Namespaces:
             {}
@@ -161,7 +161,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav1/swarm_control/visualization_p_c1
+          Marker Topic: /uav1/formation_control/visualization_p_c1
           Name: p^c1
           Namespaces:
             {}
@@ -169,7 +169,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: true
-          Marker Topic: /uav1/swarm_control/visualization_formation
+          Marker Topic: /uav1/formation_control/visualization_formation
           Name: formation
           Namespaces:
             {}
@@ -218,7 +218,7 @@ Visualization Manager:
           Displays:
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav2/swarm_control/visualization_u
+              Marker Topic: /uav2/formation_control/visualization_u
               Name: u (linear velocity action)
               Namespaces:
                 "": true
@@ -226,7 +226,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav2/swarm_control/visualization_omega
+              Marker Topic: /uav2/formation_control/visualization_omega
               Name: omega (rotational velocity action)
               Namespaces:
                 "": true
@@ -234,7 +234,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /uav2/swarm_control/visualization_formation
+              Marker Topic: /uav2/formation_control/visualization_formation
               Name: desired formation
               Namespaces:
                 formation: true
@@ -278,7 +278,7 @@ Visualization Manager:
           Value: true
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav2/swarm_control/visualization_p_c12
+          Marker Topic: /uav2/formation_control/visualization_p_c12
           Name: p^c12
           Namespaces:
             {}
@@ -286,7 +286,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav2/swarm_control/visualization_p_c1
+          Marker Topic: /uav2/formation_control/visualization_p_c1
           Name: p^c1
           Namespaces:
             {}
@@ -294,7 +294,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: true
-          Marker Topic: /uav2/swarm_control/visualization_formation
+          Marker Topic: /uav2/formation_control/visualization_formation
           Name: formation
           Namespaces:
             formation: true
@@ -346,7 +346,7 @@ Visualization Manager:
           Displays:
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav3/swarm_control/visualization_u
+              Marker Topic: /uav3/formation_control/visualization_u
               Name: u (linear velocity action)
               Namespaces:
                 "": true
@@ -354,7 +354,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/Marker
               Enabled: true
-              Marker Topic: /uav3/swarm_control/visualization_omega
+              Marker Topic: /uav3/formation_control/visualization_omega
               Name: omega (rotational velocity action)
               Namespaces:
                 "": true
@@ -362,7 +362,7 @@ Visualization Manager:
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /uav3/swarm_control/visualization_formation
+              Marker Topic: /uav3/formation_control/visualization_formation
               Name: desired formation
               Namespaces:
                 formation: true
@@ -406,7 +406,7 @@ Visualization Manager:
           Value: true
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav3/swarm_control/visualization_p_c12
+          Marker Topic: /uav3/formation_control/visualization_p_c12
           Name: p^c12
           Namespaces:
             {}
@@ -414,7 +414,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: false
-          Marker Topic: /uav3/swarm_control/visualization_p_c1
+          Marker Topic: /uav3/formation_control/visualization_p_c1
           Name: p^c1
           Namespaces:
             {}
@@ -422,7 +422,7 @@ Visualization Manager:
           Value: false
         - Class: rviz/MarkerArray
           Enabled: true
-          Marker Topic: /uav3/swarm_control/visualization_formation
+          Marker Topic: /uav3/formation_control/visualization_formation
           Name: formation
           Namespaces:
             formation: true
