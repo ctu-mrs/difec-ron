@@ -29,27 +29,6 @@ topics: # topics published out of this machine to receivers specified above
  - name: "formation_control/parameter_updates"
    compress: true # enable bz2 compression
    rate: 10.0
- - name: "swarm_control/visualization_p_c1"
-   compress: true # enable bz2 compression
-   rate: 1.0
- - name: "swarm_control/visualization_p_c12"
-   compress: true # enable bz2 compression
-   rate: 1.0
- - name: "swarm_control/visualization_u"
-   compress: true # enable bz2 compression
-   rate: 1.0
- - name: "swarm_control/visualization_omega"
-   compress: true # enable bz2 compression
-   rate: 1.0
- - name: "swarm_control/visualization_formation"
-   compress: true # enable bz2 compression
-   rate: 1.0
- - name: "/tf"
-   compress: true # enable bz2 compression
-   rate: 2.0
- - name: "/tf_static"
-   compress: true # enable bz2 compression
-   rate: 1.0
 
 services:
   - name: "/formation_multireconfigure/multireconfigure/set_parameters"
