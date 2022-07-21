@@ -106,6 +106,8 @@ namespace difec_ron
       pl.loadParam("uav_frame_id", m_uav_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
+      pl.loadParam("constraints/u", m_constr_u);
+      pl.loadParam("constraints/omega", m_constr_omega);
       const double repeat_rate = pl.loadParam2<double>("control/repeat_rate");
 
       // load the formation
@@ -120,7 +122,7 @@ namespace difec_ron
       }
 
       m_formation = formation_opt.value();
-      NODELET_INFO_STREAM("[FormationControl]: Loaded formation relative to UAV " << m_uav_name << ": ");
+      ROS_INFO_STREAM("[FormationControl]: Loaded formation relative to UAV " << m_uav_name << ": ");
       print_formation(m_formation);
       //}
 
@@ -299,8 +301,8 @@ namespace difec_ron
         // TODO: It should be transformed, but the difference for sigma will typically not be that bad
         const double sig = sqrt(cov_orig(5, 5)); //square root, since covariance has squared elements
 
-        ROS_INFO_STREAM("[FormationControl]: Target ID: " << pose.id << " has C: " << std::endl << cov_orig);
-        ROS_INFO_STREAM("[FormationControl]: Target ID: " << pose.id << " has heading sigma: " << sig << " rad");
+        ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Target ID: " << pose.id << " has C: " << std::endl << cov_orig);
+        ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Target ID: " << pose.id << " has heading sigma: " << sig << " rad");
 
         // add the measurement to the list
         const det_t det{pose.id, std::move(p), std::move(C), psi, sig};
@@ -327,6 +329,17 @@ namespace difec_ron
       }
 
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
+      if (u.norm() > m_constr_u)
+        u = u.normalized()*m_constr_u;
+      if (std::abs(omega) > m_constr_omega)
+        omega = mrs_lib::signum(omega)*m_constr_omega;
+
+      if (!u.array().isFinite().all() || !std::isfinite(omega))
+      {
+        ROS_ERROR_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Action u or omega is not finite, ignoring!");
+        return;
+      }
+      ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Constrained action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
 
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
@@ -382,7 +395,7 @@ namespace difec_ron
         // position difference between measured and desired position
         const vec3_t p_md = m.p - d.p;
 
-        ROS_INFO_STREAM("[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+        ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
     
         // | --------------------- calculate p_c1 --------------------- |
         // TODO: proper inverse calculation and checking
@@ -556,7 +569,7 @@ namespace difec_ron
         // just a helper matrix (could be replaced with a cross product)
         const mat3_t S = skew_symmetric(vec3_t::UnitZ());
 
-        ROS_INFO_STREAM("[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
+        ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Target ID: " << m.id << " has heading sigma: " << m.sig << " rad");
     
         // | --------------------- calculate u_1 ---------------------- |
         // TODO: proper inverse calculation and checking
@@ -1161,6 +1174,8 @@ namespace difec_ron
     std::string m_uav_frame_id;
     ros::Duration m_transform_lookup_timeout;
     double m_throttle_period;
+    double m_constr_u;
+    double m_constr_omega;
 
     std::vector<agent_t> m_formation;
 

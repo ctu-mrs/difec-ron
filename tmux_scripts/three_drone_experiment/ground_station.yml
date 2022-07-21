@@ -16,10 +16,6 @@ windows:
       layout: even-vertical
       panes:
         - waitForRos; rosrun mrs_uav_general run_nimbro.py custom_configs/nimbro.yaml custom_configs/uav_names.yaml
-  - tf_connector:
-      layout: even-vertical
-      panes:
-        - waitForRos; roslaunch difec_ron tf_connector_rw.launch
   - multireconfigure:
       layout: even-vertical
       panes:
