@@ -39,7 +39,7 @@
       <param name="formation/filename" value="$(arg formation_file)" />
 
       <param name="uav_name" value="$(arg uav_name)" />
-      <param name="world_frame_id" value="$(arg uav_name)/gps_origin" />
+      <param name="world_frame_id" value="$(arg uav_name)/local_origin" />
       <param name="uav_frame_id" value="$(arg uav_name)/fcu_untilted" />
     
       <!-- Subscribers -->
