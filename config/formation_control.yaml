@@ -3,7 +3,7 @@ throttle_period: 0.1 # seconds
 
 constraints:
   u: 5.0 # meters per second
-  omega: 0.5 # radians per second
+  omega: 1.5 # radians per second
 
 control:
   enabled: false

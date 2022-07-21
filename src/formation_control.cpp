@@ -106,8 +106,6 @@ namespace difec_ron
       pl.loadParam("uav_frame_id", m_uav_frame_id);
       pl.loadParam("transform_lookup_timeout", m_transform_lookup_timeout);
       pl.loadParam("throttle_period", m_throttle_period);
-      pl.loadParam("constraints/u", m_constr_u);
-      pl.loadParam("constraints/omega", m_constr_omega);
       const double repeat_rate = pl.loadParam2<double>("control/repeat_rate");
 
       // load the formation
@@ -139,10 +137,10 @@ namespace difec_ron
       m_period_buffer.set_capacity(50);
 
       //Initialize publishers
-      m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10, true);
-      m_pub_vis_p_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c12", 10, true);
-      m_pub_vis_psi_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_psi_comp", 10, true);
-      m_pub_vis_p_c1s = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c1", 10, true);
+      m_pub_vis_formation = nh.advertise<visualization_msgs::MarkerArray>("visualization_formation", 10);
+      m_pub_vis_p_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c12", 10);
+      m_pub_vis_psi_cs = nh.advertise<visualization_msgs::MarkerArray>("visualization_psi_comp", 10);
+      m_pub_vis_p_c1s = nh.advertise<visualization_msgs::MarkerArray>("visualization_p_c1", 10);
       m_pub_vis_u = nh.advertise<visualization_msgs::Marker>("visualization_u", 10);
       m_pub_vis_omega = nh.advertise<visualization_msgs::Marker>("visualization_omega", 10);
       m_pub_vel_ref = nh.advertise<mrs_msgs::VelocityReferenceStamped>("velocity_out", 10);
@@ -329,10 +327,10 @@ namespace difec_ron
       }
 
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Calculated action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
-      if (u.norm() > m_constr_u)
-        u = u.normalized()*m_constr_u;
-      if (std::abs(omega) > m_constr_omega)
-        omega = mrs_lib::signum(omega)*m_constr_omega;
+      if (u.norm() > m_drmgr_ptr->config.constraints__u)
+        u = u.normalized()*m_drmgr_ptr->config.constraints__u;
+      if (std::abs(omega) > m_drmgr_ptr->config.constraints__omega)
+        omega = mrs_lib::signum(omega)*m_drmgr_ptr->config.constraints__omega;
 
       if (!u.array().isFinite().all() || !std::isfinite(omega))
       {
@@ -341,6 +339,7 @@ namespace difec_ron
       }
       ROS_INFO_STREAM_THROTTLE(m_throttle_period, "[FormationControl]: Constrained action is u: " << u.transpose() << "^T, omega: " << omega << ". Average input frequency: " << fil_freq << "Hz");
 
+      m_pub_vis_formation.publish(formation_vis(m_formation, ros::Time::now()));
       m_pub_vis_u.publish(vector_vis(u, now, m_vis_u_color));
       m_pub_vis_omega.publish(heading_vis(omega, now, m_vis_omega_color));
       if (vis.visualize)
@@ -1174,8 +1173,6 @@ namespace difec_ron
     std::string m_uav_frame_id;
     ros::Duration m_transform_lookup_timeout;
     double m_throttle_period;
-    double m_constr_u;
-    double m_constr_omega;
 
     std::vector<agent_t> m_formation;
 
