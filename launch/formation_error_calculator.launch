@@ -20,8 +20,8 @@
       <rosparam param="uav_list" subst_value="true"> ["uav11", "uav12", "uav14"] </rosparam>
       <param name="common_frame" type="string" value="global_gps"/>
       <param name="formation_controller_node" type="string" value="$(arg difec_node)"/>
-      <param name="formation_file_location" type="string" value="$(arg formation_file_location)"/>
-      <param name="initial_formation_file" type="string" value="$(arg initial_formation_file)"/>
+      <!-- <param name="formation_file_location" type="string" value="$(arg formation_file_location)"/> -->
+      <param name="initial_formation_file" type="string" value="$(arg formation_file_location)/$(arg initial_formation_file)"/>
       <!-- <param name="local_username" type="string" value="$(arg local_username)"/> -->
       <param name="process_rate" type="double" value="$(arg process_rate)"/>
     </node>
