@@ -40,10 +40,10 @@ namespace difec_ron {
 
         /* param_loader.loadParam("original_username", _original_username_, std::string("mrs")); */
         /* param_loader.loadParam("local_username", _local_username_); */
-        param_loader.loadParam("formation_file_location", _formation_file_location_);
-        std::string initial_formation_file;
-        param_loader.loadParam("initial_formation_file", initial_formation_file);
-        initial_formation_file = _formation_file_location_ + "/" + initial_formation_file;
+        /* param_loader.loadParam("formation_file_location", _formation_file_location_); */
+        /* std::string initial_formation_file; */
+        /* param_loader.loadParam("initial_formation_file", initial_formation_file); */
+        /* initial_formation_file = _formation_file_location_ + "/" + initial_formation_file; */
 
         param_loader.loadParam("uav_list", _uav_list_, _uav_list_);
 
@@ -55,12 +55,12 @@ namespace difec_ron {
           return;
         }
 
-        auto initial_formation = load_formation(initial_formation_file);
-        if (!initial_formation){
-          ROS_ERROR("[FormationErrorCalculator]: Failed to pre-laod initial formation file. Returning.");
-          ros::shutdown();
-          return;
-        }
+        /* auto initial_formation = load_formation(initial_formation_file); */
+        /* if (!initial_formation){ */
+        /*   ROS_ERROR("[FormationErrorCalculator]: Failed to pre-laod initial formation file. Returning."); */
+        /*   ros::shutdown(); */
+        /*   return; */
+        /* } */
         int i = 0;
         for (auto uav_name : _uav_list_){
           agent_t agent_curr;
@@ -182,7 +182,8 @@ namespace difec_ron {
           /*   return; */
           /* }; */
           /* filename.replace(index, _original_username_.length(), _local_username_); */
-          std::string filename = _formation_file_location_+"/"+base_filename;
+          /* std::string filename = _formation_file_location_+"/"+base_filename; */
+          std::string filename = base_filename;
 
           if (filename != last_formation_file_){
             /* auto opt = load_formation(filename); */
@@ -378,68 +379,68 @@ namespace difec_ron {
         return result;
       }
 
-      std::optional<std::vector<agent_t>> load_formation(const std::string& filename)
-      {
-        ROS_INFO_STREAM("[FormationControl]: Parsing formation from file '" << filename << "'."); 
-        std::ifstream fs(filename);
-        if (!fs.is_open())
-        {
-          ROS_ERROR_STREAM("[FormationControl]: Couldn't open the formation file!");
-          return std::nullopt;
-        }
-        // ignore the first line that only contains the csv columns description
-        std::string line;
-        std::getline(fs, line);
+      /* std::optional<std::vector<agent_t>> load_formation(const std::string& filename) */
+      /* { */
+      /*   ROS_INFO_STREAM("[FormationControl]: Parsing formation from file '" << filename << "'."); */ 
+      /*   std::ifstream fs(filename); */
+      /*   if (!fs.is_open()) */
+      /*   { */
+      /*     ROS_ERROR_STREAM("[FormationControl]: Couldn't open the formation file!"); */
+      /*     return std::nullopt; */
+      /*   } */
+      /*   // ignore the first line that only contains the csv columns description */
+      /*   std::string line; */
+      /*   std::getline(fs, line); */
 
-        bool all_ok = true;
-        std::vector<agent_t> formation;
-        while (std::getline(fs, line))
-        {
-          // Ignore empty lines
-          if (line.empty())
-            continue;
+      /*   bool all_ok = true; */
+      /*   std::vector<agent_t> formation; */
+      /*   while (std::getline(fs, line)) */
+      /*   { */
+      /*     // Ignore empty lines */
+      /*     if (line.empty()) */
+      /*       continue; */
 
-          // Tokenize the line
-          boost::trim(line);
-          /* const std::vector<std::string> st = split(line, ' '); */
-          std::vector<std::string> st;
-          boost::split(st, line, boost::is_any_of(",;"), boost::token_compress_on);
+      /*     // Tokenize the line */
+      /*     boost::trim(line); */
+      /*     /1* const std::vector<std::string> st = split(line, ' '); *1/ */
+      /*     std::vector<std::string> st; */
+      /*     boost::split(st, line, boost::is_any_of(",;"), boost::token_compress_on); */
 
-          if (st.size() < 5)
-          {
-            ROS_WARN_STREAM("[FormationControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); 
-            continue;
-          }
+      /*     if (st.size() < 5) */
+      /*     { */
+      /*       ROS_WARN_STREAM("[FormationControl]: Read line with a wrong number of elements: " << st.size() << " (expected exactly 5). The line: '" << line << "'."); */ 
+      /*       continue; */
+      /*     } */
 
-          size_t it = 0;
-          const std::string uav_name = st.at(it++);
-          ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name);
-          try
-          {
-            const uint64_t id = std::stoul(st.at(it++));
-            // try to parse the expected values
-            const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))};
-            const rads_t heading = std::stod(st.at(it++));
+      /*     size_t it = 0; */
+      /*     const std::string uav_name = st.at(it++); */
+      /*     ROS_INFO_STREAM("[FormationControl]: Loading formation data for UAV " << uav_name); */
+      /*     try */
+      /*     { */
+      /*       const uint64_t id = std::stoul(st.at(it++)); */
+      /*       // try to parse the expected values */
+      /*       const std::array<double, 3> coords = {std::stod(st.at(it++)), std::stod(st.at(it++)), std::stod(st.at(it++))}; */
+      /*       const rads_t heading = std::stod(st.at(it++)); */
 
-            // create the agent and add it to the formation
-            const vec3_t position(coords[0], coords[1], coords[2]);
-            const pose_t agent_pose = {position, heading};
-            const agent_t agent = {id, uav_name, agent_pose};
-            formation.emplace_back(agent);
-          }
-          catch (const std::exception& e)
-          {
-            ROS_WARN_STREAM("[FormationControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'.");
-            all_ok = false;
-            continue;
-          }
-        }
+      /*       // create the agent and add it to the formation */
+      /*       const vec3_t position(coords[0], coords[1], coords[2]); */
+      /*       const pose_t agent_pose = {position, heading}; */
+      /*       const agent_t agent = {id, uav_name, agent_pose}; */
+      /*       formation.emplace_back(agent); */
+      /*     } */
+      /*     catch (const std::exception& e) */
+      /*     { */
+      /*       ROS_WARN_STREAM("[FormationControl]: Couldn't load all necessary formation information about UAV " << uav_name << ", ignoring. Expected fields:\nuav_name (string), uvdar_id (int), position_x (double), position_y (double), position_z (double), heading (double)\nThe line:\n'" << line << "'."); */
+      /*       all_ok = false; */
+      /*       continue; */
+      /*     } */
+      /*   } */
 
-        if (all_ok)
-          return formation;
-        else
-          return std::nullopt;
-      }
+      /*   if (all_ok) */
+      /*     return formation; */
+      /*   else */
+      /*     return std::nullopt; */
+      /* } */
 
       std::optional<std::vector<agent_t>> retrieve_current_formation()
       {
@@ -478,7 +479,7 @@ namespace difec_ron {
       std::string _formation_controler_node_;
 
       /* std::string _original_username_; */
-      std::string _formation_file_location_;
+      /* std::string _formation_file_location_; */
 
       std::vector<agent_t> formation_curr_;
       std::vector<pose_t> formation_curr_relative_;
