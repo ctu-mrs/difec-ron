@@ -188,17 +188,26 @@ namespace difec_ron {
           if (filename != last_formation_file_){
             /* auto opt = load_formation(filename); */
             ROS_INFO_STREAM("[FormationControl]: Retrieving formation for file '" << filename << "'."); 
-            auto opt = retrieve_current_formation();
-            if (opt.has_value()){
-              formation_desired_ = opt.value();
+          }
+
+          auto opt = retrieve_current_formation();
+          if (opt.has_value()){
+            formation_desired_ = opt.value();
+            
+            if ( formation_desired_prev_.empty() ){
               last_formation_file_ = filename;
-              /* ROS_INFO_STREAM("[FormationControl]: des. relative"); */ 
-              formation_desired_relative_ = formationRelative(formation_desired_);
+              formation_desired_prev_ = formation_desired_;
             }
-            else {
-              ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not retrieve formation corresponding to file " << filename << ". Returning.");
-              return;
+            else if ( !std::equal(formation_desired_.begin(), formation_desired_.end(), formation_desired_prev_.begin(), FormationErrorCalculator::agent_pred) ){
+              last_formation_file_ = filename;
+              formation_desired_prev_ = formation_desired_;
             }
+            /* ROS_INFO_STREAM("[FormationControl]: des. relative"); */ 
+            formation_desired_relative_ = formationRelative(formation_desired_);
+          }
+          else {
+            ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not retrieve formation corresponding to file " << filename << ". Returning.");
+            return;
           }
 
           laplacian_matrix_ = e::MatrixXd::Zero(_uav_list_.size(),_uav_list_.size());
@@ -290,6 +299,18 @@ namespace difec_ron {
     }
 
     private: 
+      static bool agent_pred(const agent_t a, const agent_t b){
+        if (a.id != b.id)
+          return false;
+        if (a.uav_name != b.uav_name)
+          return false;
+        if (a.pose.p != b.pose.p)
+          return false;
+        if (a.pose.psi.value() != b.pose.psi.value())
+          return false;
+
+        return true;
+      }
 
       std::vector<pose_t> formationRelative(std::vector<agent_t> formation_absolute){
         std::vector<pose_t> output;
@@ -458,7 +479,7 @@ namespace difec_ron {
               const rads_t heading = atan2(m.points[1].y - m.points[0].y,m.points[1].x - m.points[0].x);
               const pose_t agent_pose = {position, heading};
               const agent_t agent = {(uint64_t)(m.id), m.ns, agent_pose};
-              ROS_INFO_STREAM("[FormationControl]: adding p: " << position.transpose() << ", h: " << heading.value()); 
+              /* ROS_INFO_STREAM("[FormationControl]: adding p: " << position.transpose() << ", h: " << heading.value()); */ 
               formation.push_back(agent);
             }
           }
@@ -493,7 +514,7 @@ namespace difec_ron {
       bool control_enables_ = false;
       bool use_noise_ = false;
       std::string last_formation_file_;
-      std::vector<agent_t> formation_desired_;
+      std::vector<agent_t> formation_desired_, formation_desired_prev_;
       std::vector<pose_t> formation_desired_relative_;
 
       double restraining_factor_, proportional_constant_;
