@@ -1,6 +1,7 @@
 #include "main.h"
 #include <difec_ron/FormationState.h>
 #include <dynamic_reconfigure/Config.h>
+#include <nav_msgs/Odometry.h>
 #include <mrs_msgs/UavState.h>
 #include <mrs_msgs/PoseWithCovarianceArrayStamped.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -82,19 +83,24 @@ namespace difec_ron {
 
         mrs_lib::construct_object(m_sh_formation_visualization, shopts, "/"+_uav_list_.at(0)+"/"+_formation_controler_node_+"/visualization_formation");
         
+        std::string odometry_source;
+        param_loader.loadParam("odometry_source", odometry_source, std::string("odom_rtk_out"));
 
         acceleration_pos_ = e::VectorXd(_uav_list_.size());
         acceleration_rot_ = e::VectorXd(_uav_list_.size());
         velocity_ang_ = e::VectorXd(_uav_list_.size());
         int u = 0;
         for (auto uav : _uav_list_){
-          m_sh_odometry_updates.push_back(mrs_lib::SubscribeHandler<mrs_msgs::UavState>(shopts, "/"+uav+"/odometry/uav_state"));
+          m_sh_odometry_state.push_back(mrs_lib::SubscribeHandler<mrs_msgs::UavState>(shopts, "/"+uav+"/odometry/uav_state"));
           acceleration_pos_(u) =  std::nan("1");
           acceleration_rot_(u) =  std::nan("1");
           velocity_ang_(u) =  std::nan("1");
 
           m_sh_relative_localization.push_back(mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>(shopts, "/"+uav+"/uvdar/filteredPoses"));
           rel_localizations_.push_back(mrs_msgs::PoseWithCovarianceArrayStamped());
+
+          m_sh_odometry_pose.push_back(mrs_lib::SubscribeHandler<nav_msgs::Odometry>(shopts, "/"+uav+"/odometry/"+odometry_source));
+
           u++;
         }
         
@@ -117,20 +123,38 @@ namespace difec_ron {
 
         int i = 0;
         for (auto uav_name : _uav_list_){
-          const auto tf_opt = m_transformer.getTransform(uav_name+"/fcu", _common_frame_, now);
-          if (!tf_opt.has_value())
-          {
-            ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not lookup transformation from \"" << uav_name+"/fcu" << "\" to \"" << _common_frame_ );
+          /* const auto tf_opt = m_transformer.getTransform(uav_name+"/fcu", _common_frame_, now); */
+          /* if (!tf_opt.has_value()) */
+          /* { */
+          /*   ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not lookup transformation from \"" << uav_name+"/fcu" << "\" to \"" << _common_frame_ ); */
+          /*   return; */
+          /* } */
+          /* const auto tf_uav = tf_opt.value(); */
+          /* const Eigen::Isometry3d tf = tf2::transformToEigen(tf_uav); */
+          /* const mat3_t tf_rot = tf.rotation(); */
+          /* const rads_t tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot); */
+          /* const vec3_t p = tf*e::Vector3d(0,0,0); */
+          /* const vec3_t p = tf.translation(); */
+
+          const auto msg_ptr = m_sh_odometry_pose.at(i).waitForNew(timeout);
+          if (msg_ptr){
+            vec3_t p;
+            p.x() = msg_ptr->pose.pose.position.x;
+            p.y() = msg_ptr->pose.pose.position.y;
+            p.z() = msg_ptr->pose.pose.position.z;
+            e::Quaterniond qr;
+            qr.x() = msg_ptr->pose.pose.orientation.x;
+            qr.y() = msg_ptr->pose.pose.orientation.y;
+            qr.z() = msg_ptr->pose.pose.orientation.z;
+            qr.w() = msg_ptr->pose.pose.orientation.w;
+            const rads_t od_hdg = mrs_lib::geometry::headingFromRot(qr);
+            formation_curr_.at(i).pose = {p,od_hdg};
+            formation_curr_.at(i).uav_name = uav_name;
+          }
+          else {
+            ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Could not retrieve odometry of " << uav_name << ". Returning.");
             return;
           }
-          const auto tf_uav = tf_opt.value();
-          const Eigen::Isometry3d tf = tf2::transformToEigen(tf_uav);
-          const mat3_t tf_rot = tf.rotation();
-          const rads_t tf_hdg = mrs_lib::geometry::headingFromRot(tf_rot);
-          const vec3_t p = tf*e::Vector3d(0,0,0);
-          /* const vec3_t p = tf.translation(); */
-          formation_curr_.at(i).pose = {p,tf_hdg};
-          formation_curr_.at(i).uav_name = uav_name;
 
           /* ROS_INFO_STREAM("[FormationControl]: For " << uav_name << "(" << i << ") the pose is: p: " << p.transpose() << ", psi: " << tf_hdg); */
 
@@ -139,7 +163,7 @@ namespace difec_ron {
 
         int u = 0;
         for (auto uav_name : _uav_list_){
-          const auto msg_ptr = m_sh_odometry_updates.at(u).waitForNew(timeout);
+          const auto msg_ptr = m_sh_odometry_state.at(u).waitForNew(timeout);
           if (msg_ptr){
             e::Vector3d accel_lin;
             e::Vector3d accel_rot;
@@ -277,6 +301,10 @@ namespace difec_ron {
         }
 
         auto [formation_error, position_mean_error, orientation_mean_error] = formationError(formation_curr_relative_, formation_desired_relative_);
+        if (formation_error < 0){
+          ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Failed to calculate formation error.");
+          return;
+        }
 
         difec_ron::FormationState msg_pub;
         msg_pub.header.stamp = now;
@@ -333,6 +361,10 @@ namespace difec_ron {
       }
 
       std::tuple<double,double,double> formationError(std::vector<pose_t> curr, std::vector<pose_t> desired){
+        if (curr.size() != desired.size()){
+          ROS_ERROR_STREAM_THROTTLE(1, "[FormationControl]: Cannot calculate formation error - the number of desired and current relative poses do not match.");
+          return {-1,-1,-1};
+        }
         e::VectorXd formation_diff_vector(curr.size()*4);
         e::VectorXd position_diff_vector(curr.size()*1);
         e::VectorXd orientation_diff_vector(curr.size()*1);
@@ -340,8 +372,8 @@ namespace difec_ron {
         for ( int i = 0; i < (int)(curr.size()); i++){
           auto curr_p_diff = desired.at(i).p - curr.at(i).p;
           auto curr_psi_diff = rads_t::dist(desired.at(i).psi,curr.at(i).psi);
-      /* ROS_INFO_STREAM("[FormationControl]: des: \n" << desired.at(i).p.transpose() << ", " << desired.at(i).psi); */ 
-      /* ROS_INFO_STREAM("[FormationControl]: cur: \n" << curr.at(i).p.transpose() << ", " << curr.at(i).psi); */ 
+      ROS_INFO_STREAM("[FormationControl]: des: \n" << desired.at(i).p.transpose() << ", " << desired.at(i).psi); 
+      ROS_INFO_STREAM("[FormationControl]: cur: \n" << curr.at(i).p.transpose() << ", " << curr.at(i).psi); 
           formation_diff_vector(i*4 + 0) = curr_p_diff.x();
           formation_diff_vector(i*4 + 1) = curr_p_diff.y();
           formation_diff_vector(i*4 + 2) = curr_p_diff.z();
@@ -354,8 +386,10 @@ namespace difec_ron {
           orientation_diff_vector(i*1 + 0) = curr_psi_diff;
         }
 
-      /* ROS_INFO_STREAM("[FormationControl]: Error function: \n" << formation_diff_vector.norm()); */ 
-      /* ROS_INFO_STREAM("[FormationControl]: Partial position errors: \n" << position_diff_vector.transpose()); */ 
+      ROS_INFO_STREAM("[FormationControl]: Error function: " << formation_diff_vector.norm()); 
+      ROS_INFO_STREAM("[FormationControl]: partial position errors: " << position_diff_vector.transpose()); 
+      ROS_INFO_STREAM("[FormationControl]: Mean position error: " << position_diff_vector.mean()); 
+      ROS_INFO_STREAM("[FormationControl]: Mean orientation error: " << orientation_diff_vector.mean()); 
 
 
         return {formation_diff_vector.norm(),position_diff_vector.mean(),orientation_diff_vector.mean()};
@@ -506,7 +540,8 @@ namespace difec_ron {
       std::vector<pose_t> formation_curr_relative_;
 
       mrs_lib::SubscribeHandler<dynamic_reconfigure::Config> m_sh_formation_control_updates;
-      std::vector<mrs_lib::SubscribeHandler<mrs_msgs::UavState>> m_sh_odometry_updates;
+      std::vector<mrs_lib::SubscribeHandler<mrs_msgs::UavState>> m_sh_odometry_state;
+      std::vector<mrs_lib::SubscribeHandler<nav_msgs::Odometry>> m_sh_odometry_pose;
       std::vector<mrs_lib::SubscribeHandler<mrs_msgs::PoseWithCovarianceArrayStamped>> m_sh_relative_localization;
       mrs_lib::SubscribeHandler<visualization_msgs::MarkerArray> m_sh_formation_visualization;
       std::vector<mrs_msgs::PoseWithCovarianceArrayStamped> rel_localizations_;
